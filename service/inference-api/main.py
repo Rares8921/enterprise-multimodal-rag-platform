@@ -1,12 +1,14 @@
 import logging, random, asyncio, time, json
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import redis.asyncio as aioredis
 from pinecone import Pinecone
 from minio import Minio
+from sentence_transformers import SentenceTransformer
 
 from config import Settings
 from auth import verify_tenant
@@ -34,6 +36,60 @@ pinecone_client: Optional[Pinecone] = None
 pinecone_index = None
 
 minio_client: Optional[Minio] = None
+
+embedding_model: Optional[SentenceTransformer] = None
+embedding_model_cpu: Optional[SentenceTransformer] = None
+embedding_device: str = "cpu"
+embedding_semaphore: Optional[asyncio.Semaphore] = None
+
+async def check_circuit_breaker() -> bool:
+    cb_key = "circuit_breaker:llm"
+    is_open = await redis_client.get(cb_key)
+    return is_open == "1"
+
+
+async def encode_with_fallback(text: str, request_id: str, timeout: float = 10.0):
+    """Encode text with GPU, fallback to CPU on failure"""
+    loop = asyncio.get_event_loop()
+
+    # Try GPU first if available
+    if embedding_device == "cuda":
+        try:
+            embedding = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: embedding_model.encode(
+                        text,
+                        convert_to_numpy=True,
+                        normalize_embeddings=True
+                    )
+                ),
+                timeout=timeout
+            )
+            return embedding
+        except asyncio.TimeoutError:
+            logger.warning(f"[{request_id}] GPU embedding timeout, falling back to CPU")
+        except Exception as e:
+            logger.warning(f"[{request_id}] GPU embedding failed: {e}, falling back to CPU")
+
+    # CPU fallback
+    try:
+        embedding = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: embedding_model_cpu.encode(
+                    text,
+                    convert_to_numpy=True,
+                    normalize_embeddings=True
+                )
+            ),
+            timeout=timeout * 2  # Give CPU more time
+        )
+        return embedding
+    except Exception as e:
+        logger.error(f"[{request_id}] CPU embedding also failed: {e}")
+        raise HTTPException(status_code=503, detail="Embedding service unavailable")
+
 
 async def retry_delete_document(doc_id: str, tenant_id: str, object_name: Optional[str] = None, max_retries: int = 3) -> bool:
     """Retry deleting document from Pinecone and MinIO with exponential backoff"""
@@ -80,7 +136,6 @@ async def retry_delete_document(doc_id: str, tenant_id: str, object_name: Option
 
 
 async def add_to_delete_dlq(doc_id: str, doc_data: dict, failure_reason: str):
-    """Add failed delete to Dead Letter Queue"""
     dlq_key = "delete_dlq"
     task_data = {
         'doc_id': doc_id,
@@ -172,6 +227,59 @@ async def delete_document(doc_id: str, x_tenant_id: str = Header(...)):
     except Exception as e:
         logger.error(f"Error deleting document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/health")
+async def health_check(deep: bool = False):
+    circuit_breaker_open = await check_circuit_breaker()
+
+    checks = {
+        'api': 'healthy',
+        'redis': 'unknown',
+        'pinecone': 'unknown',
+        'embedding_model': 'loaded' if embedding_model else 'not_loaded',
+        'circuit_breaker': 'open' if circuit_breaker_open else 'closed'
+    }
+
+    try:
+        await redis_client.ping()
+        await redis_client.set('health_check', '1', ex=10)
+        checks['redis'] = 'connected'
+    except Exception as e:
+        checks['redis'] = f'disconnected: {str(e)}'
+
+    try:
+        stats = pinecone_index.describe_index_stats()
+        checks['pinecone'] = 'connected'
+        checks['vector_count'] = stats.get('total_vector_count', 0)
+        checks['namespaces'] = len(stats.get('namespaces', {}))
+    except Exception as e:
+        checks['pinecone'] = f'disconnected: {str(e)}'
+
+    if deep and embedding_model:
+        try:
+            test_text = "health check test query"
+            async with embedding_semaphore:
+                test_embedding = await encode_with_fallback(
+                    test_text,
+                    "health_check",
+                    timeout=5.0
+                )
+            checks['embedding_test'] = 'passed' if test_embedding is not None else 'failed'
+        except Exception as e:
+            checks['embedding_test'] = f'failed: {str(e)}'
+
+    overall_healthy = (
+        checks['redis'] == 'connected' and
+        checks['pinecone'] == 'connected' and
+        checks['embedding_model'] == 'loaded' and
+        not circuit_breaker_open
+    )
+
+    checks['status'] = 'healthy' if overall_healthy else 'degraded'
+    status_code = 200 if overall_healthy else 503
+
+    return JSONResponse(content=checks, status_code=status_code)
 
 
 @app.get("/stats/{tenant_id}")
