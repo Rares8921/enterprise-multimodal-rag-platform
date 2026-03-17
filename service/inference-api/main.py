@@ -33,6 +33,35 @@ pinecone_client: Optional[Pinecone] = None
 pinecone_index = None
 
 
+@app.get("/documents/{tenant_id}")
+async def list_documents(tenant_id: str, x_tenant_id: str = Header(...)):
+    verified_tenant = await verify_tenant(x_tenant_id=x_tenant_id)
+
+    if verified_tenant != tenant_id:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        doc_ids = await redis_client.smembers(f"tenant_docs:{tenant_id}")
+
+        documents = []
+        for doc_id in doc_ids:
+            doc_data = await redis_client.hgetall(f"doc:{doc_id}")
+            if doc_data:
+                documents.append({
+                    'doc_id': doc_data.get('doc_id'),
+                    'filename': doc_data.get('filename'),
+                    'doc_type': doc_data.get('doc_type'),
+                    'status': doc_data.get('status'),
+                    'uploaded_at': doc_data.get('uploaded_at')
+                })
+
+        return {'documents': documents, 'total': len(documents)}
+
+    except Exception as e:
+        logger.error(f"Error listing documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/stats/{tenant_id}")
 async def get_stats(tenant_id: str, x_tenant_id: str = Header(...)):
     verified_tenant = await verify_tenant(x_tenant_id=x_tenant_id)
