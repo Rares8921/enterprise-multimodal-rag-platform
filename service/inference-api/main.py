@@ -571,6 +571,13 @@ def query_pinecone(vector_np, top_k: int, namespace: str, filter_dict: dict) -> 
         return {'matches': []}
 
 
+def estimate_payload_tokens(payload: dict) -> int:
+    total_tokens = count_tokens_precise(payload.get('query', ''))
+    for ctx in payload.get('context', []):
+        total_tokens += count_tokens_precise(ctx.get('text', ''))
+    return total_tokens
+
+
 def build_llm_payload(query: str, context: List[Dict[str, Any]], doc_type: str, tenant_id: str, model_choice: str) -> dict:
     # this goes into user message
     sanitized_query = sanitize_context(query)
