@@ -1,4 +1,4 @@
-import logging, random, asyncio, time, json, uuid
+import logging, random, asyncio, time, json, uuid, hashlib
 from typing import Counter, Dict
 
 from fastapi import FastAPI, Header, HTTPException
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Document API", version="1.0.0")
 settings = Settings()
 
+CACHE_HITS = Counter('cache_hits_total', 'Cache hits', ['tenant_id'])
 QUERY_FAILURES = Counter('query_failures_total', 'Failed queries', ['error_type', 'tenant_id'])
 RATE_LIMIT_EXCEEDED = Counter('rate_limit_exceeded_total', 'Rate limit hits', ['tenant_id'])
 
@@ -142,6 +143,23 @@ async def check_circuit_breaker() -> bool:
     cb_key = "circuit_breaker:llm"
     is_open = await redis_client.get(cb_key)
     return is_open == "1"
+
+
+def build_cache_key(tenant_id: str, request: QueryRequest) -> str:
+    cache_params = {
+        'q': request.query,
+        'doc_type': request.doc_type,
+        'doc_id': request.doc_id,
+        'model': request.model_choice,
+        'top_k': request.top_k,
+        'embedding_model': settings.embedding_model
+    }
+
+    def _stable_hash(text: str) -> str:
+        return hashlib.sha256(text.encode()).hexdigest()
+
+    param_hash = _stable_hash(json.dumps(cache_params, sort_keys=True))
+    return f"query_cache:{tenant_id}:{param_hash}"
 
 
 async def encode_with_fallback(text: str, request_id: str, timeout: float = 10.0):
