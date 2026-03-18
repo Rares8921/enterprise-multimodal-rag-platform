@@ -168,6 +168,49 @@ async def shutdown():
         await llm_client.aclose()
 
 
+def count_tokens_precise(text: str) -> int:
+    if TIKTOKEN_AVAILABLE and tiktoken_encoder:
+        try:
+            return len(tiktoken_encoder.encode(text))
+        except Exception as e:
+            logger.warning(f"Tiktoken encoding failed: {e}, using char estimation")
+    return len(text) // 4
+
+
+def truncate_context_to_limit(context: list, query: str, max_tokens: int = 7500) -> list:
+    query_tokens = count_tokens_precise(query)
+    # Add safety buffer (reserve tokens for response + system prompt)
+    safety_buffer = 500
+    available_tokens = max_tokens - query_tokens - safety_buffer
+
+    if available_tokens < 0:
+        logger.warning(f"Query too long ({query_tokens} tokens), truncating heavily")
+        available_tokens = max_tokens // 2  # Fallback: use half
+
+    truncated = []
+    current_tokens = 0
+
+    for ctx in context:
+        text = ctx.get('text', '')
+        ctx_tokens = count_tokens_precise(text)
+
+        if current_tokens + ctx_tokens <= available_tokens:
+            truncated.append(ctx)
+            current_tokens += ctx_tokens
+        else:
+            remaining_tokens = available_tokens - current_tokens
+            if remaining_tokens > 50:  # Only add if meaningful space left
+                # Truncate at character level (approximation)
+                chars_per_token = len(text) / max(ctx_tokens, 1)
+                remaining_chars = int(remaining_tokens * chars_per_token)
+                truncated_ctx = ctx.copy()
+                truncated_ctx['text'] = text[:remaining_chars]
+                truncated.append(truncated_ctx)
+            break
+
+    return truncated
+
+
 def get_tenant_semaphore(tenant_id: str, max_concurrent_per_tenant: int = 5) -> asyncio.Semaphore:
     """Get or create semaphore for a tenant"""
     if tenant_id not in tenant_semaphores:
@@ -270,6 +313,18 @@ async def check_circuit_breaker() -> bool:
 async def reset_circuit_breaker_failures():
     failures_key = "circuit_breaker:llm:failures"
     await redis_client.delete(failures_key)
+
+
+async def open_circuit_breaker():
+    cb_key = "circuit_breaker:llm"
+    await redis_client.setex(cb_key, settings.circuit_breaker_timeout, "1")
+    # Publish event to other instances
+    await redis_client.publish("circuit_breaker:events", json.dumps({
+        "action": "open",
+        "timestamp": time.time(),
+        "timeout": settings.circuit_breaker_timeout
+    }))
+    logger.warning("Circuit breaker opened and notified all instances")
 
 
 async def circuit_breaker_listener():
