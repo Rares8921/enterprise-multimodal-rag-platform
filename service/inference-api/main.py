@@ -171,6 +171,56 @@ async def reset_circuit_breaker_failures():
     await redis_client.delete(failures_key)
 
 
+async def circuit_breaker_listener():
+    """Listen to circuit breaker events from other instances"""
+    try:
+        pubsub = redis_pubsub_client.pubsub()
+        await pubsub.subscribe("circuit_breaker:events")
+        logger.info("Circuit breaker listener started")
+
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                try:
+                    event = json.loads(message['data'])
+                    if event.get('action') == 'open':
+                        logger.info(f"Received circuit breaker open event from another instance at {event.get('timestamp')}")
+                        # Local cache is already synchronized via Redis key, this is just for logging/monitoring
+                except Exception as e:
+                    logger.error(f"Error processing circuit breaker event: {e}")
+    except Exception as e:
+        logger.error(f"Circuit breaker listener failed: {e}")
+    finally:
+        await pubsub.unsubscribe("circuit_breaker:events")
+        await pubsub.close()
+
+
+async def increment_circuit_breaker_failures() -> int:
+    lua_script = """
+    local failures = redis.call('INCR', KEYS[1])
+    if failures == 1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+    end
+    if failures >= tonumber(ARGV[2]) then
+        redis.call('SETEX', KEYS[2], ARGV[1], '1')
+    end
+    return failures
+    """
+
+    failures_key = "circuit_breaker:llm:failures"
+    cb_key = "circuit_breaker:llm"
+
+    failures = await redis_client.eval(
+        lua_script,
+        2,
+        failures_key,
+        cb_key,
+        str(settings.circuit_breaker_timeout),
+        str(settings.circuit_breaker_threshold)
+    )
+
+    return failures
+
+
 def build_cache_key(tenant_id: str, request: QueryRequest) -> str:
     cache_params = {
         'q': request.query,
