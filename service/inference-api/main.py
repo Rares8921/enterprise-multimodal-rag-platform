@@ -22,6 +22,7 @@ app = FastAPI(title="Document API", version="1.0.0")
 settings = Settings()
 
 QUERY_FAILURES = Counter('query_failures_total', 'Failed queries', ['error_type', 'tenant_id'])
+RATE_LIMIT_EXCEEDED = Counter('rate_limit_exceeded_total', 'Rate limit hits', ['tenant_id'])
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +41,9 @@ pinecone_client: Optional[Pinecone] = None
 pinecone_index = None
 
 minio_client: Optional[Minio] = None
+
+request_semaphore: Optional[asyncio.Semaphore] = None
+embedding_semaphore: Optional[asyncio.Semaphore] = None
 
 embedding_model: Optional[SentenceTransformer] = None
 embedding_model_cpu: Optional[SentenceTransformer] = None
@@ -82,6 +86,56 @@ def release_with_fairness(tenant_id: str, global_sem: asyncio.Semaphore, tenant_
     tenant_request_counts[tenant_id] = max(0, tenant_request_counts.get(tenant_id, 1) - 1)
     tenant_sem.release()
     global_sem.release()
+
+
+async def check_rate_limit(tenant_id: str) -> None:
+    # Use hash tags for Redis Cluster to ensure all tenant keys on same shard
+    key = f"{{tenant_id:{tenant_id}}}:rate:window"
+    now = time.time()
+    window_start = now - 60  # 60 seconds window
+
+    lua_script = """
+    local key = KEYS[1]
+    local now = tonumber(ARGV[1])
+    local window_start = tonumber(ARGV[2])
+    local max_requests = tonumber(ARGV[3])
+    local request_id = ARGV[4]
+
+    -- Remove old entries outside the window
+    redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
+
+    -- Count current requests in window
+    local current_count = redis.call('ZCARD', key)
+
+    if current_count >= max_requests then
+        return -1
+    end
+
+    -- Add current request
+    redis.call('ZADD', key, now, request_id)
+    redis.call('EXPIRE', key, 120) -- Keep key for 2 minutes
+
+    return current_count + 1
+    """
+
+    request_id = str(uuid.uuid4())
+    count = await redis_client.eval(
+        lua_script,
+        1,
+        key,
+        str(now),
+        str(window_start),
+        str(settings.rate_limit_per_minute),
+        request_id
+    )
+
+    if count == -1:
+        RATE_LIMIT_EXCEEDED.labels(tenant_id=tenant_id).inc()
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Max {settings.rate_limit_per_minute} requests per minute."
+        )
+
 
 
 async def check_circuit_breaker() -> bool:
