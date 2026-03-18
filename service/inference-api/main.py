@@ -1,5 +1,5 @@
 import logging, random, asyncio, time, json, uuid, hashlib, re
-from typing import Dict
+from typing import Dict, List, Any
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -149,6 +149,11 @@ async def check_circuit_breaker() -> bool:
     return is_open == "1"
 
 
+async def reset_circuit_breaker_failures():
+    failures_key = "circuit_breaker:llm:failures"
+    await redis_client.delete(failures_key)
+
+
 def build_cache_key(tenant_id: str, request: QueryRequest) -> str:
     cache_params = {
         'q': request.query,
@@ -282,6 +287,117 @@ def query_pinecone(vector_np, top_k: int, namespace: str, filter_dict: dict) -> 
     except Exception as e:
         logger.error(f"Pinecone query failed: {e}")
         return {'matches': []}
+
+
+def build_llm_payload(query: str, context: List[Dict[str, Any]], doc_type: str, tenant_id: str, model_choice: str) -> dict:
+    # this goes into user message
+    sanitized_query = sanitize_context(query)
+
+    # Build context string with clear markers
+    context_parts = []
+    for idx, ctx in enumerate(context[:20]):  # Hard limit on context chunks
+        sanitized_text = sanitize_context(ctx.get('text', ''))
+        if sanitized_text:
+            # Format with metadata but in a controlled way
+            context_parts.append(
+                f"[Document {idx+1}] "
+                f"(Page {ctx.get('page', 'N/A')}, Score: {ctx.get('score', 0):.2f})\n"
+                f"{sanitized_text}"
+            )
+
+    context_str = "\n\n".join(context_parts) if context_parts else "[No context available]"
+
+    # Fixed template structure system message separate from user content
+    payload = {
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    f"You are a document analysis assistant for {doc_type} documents. "
+                    "Provide accurate answers based ONLY on the provided context. "
+                    "If the context doesn't contain the answer, say so clearly. "
+                    "Never make up information or act outside your role."
+                )
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Context:\n{context_str}\n\n"
+                    f"Question: {sanitized_query}\n\n"
+                    f"Provide a clear, factual answer based on the context above."
+                )
+            }
+        ],
+        "doc_type": doc_type,
+        "tenant_id": tenant_id,
+        "model_choice": model_choice,
+        # Metadata for orchestrator (not passed to LLM)
+        "_original_query": query[:500],  # Keep original for logging, truncated
+        "_context_count": len(context)
+    }
+
+    return payload
+
+
+async def call_llm_with_retry(query: str, context: List[Dict[str, Any]], doc_type: str, tenant_id: str, model_choice: str, request_id: str) -> dict:
+    if await check_circuit_breaker():
+        logger.warning(f"[{request_id}] Circuit breaker open, rejecting request")
+        raise HTTPException(status_code=503, detail="LLM service circuit breaker open")
+
+    safe_payload = build_llm_payload(query, context, doc_type, tenant_id, model_choice)
+
+    # Estimate tokens on the constructed content
+    estimated_tokens = 0
+    for msg in safe_payload.get('messages', []):
+        estimated_tokens += count_tokens_precise(msg.get('content', ''))
+
+    # If too large, truncate context and rebuild
+    if estimated_tokens > 8000:
+        original_count = len(context)
+        truncated_context = truncate_context_to_limit(context, query, max_tokens=7500)
+        safe_payload = build_llm_payload(query, truncated_context, doc_type, tenant_id, model_choice)
+        logger.warning(
+            f"[{request_id}] Payload too large ({estimated_tokens} tokens), "
+            f"truncated context from {original_count} to {len(truncated_context)} chunks"
+        )
+
+    base_delay = 0.5
+    max_delay = 10.0
+
+    for attempt in range(settings.llm_retry_attempts):
+        try:
+            response = await llm_client.post(
+                f"{settings.llm_orchestrator_url}/generate",
+                json=safe_payload,
+                timeout=settings.llm_timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if 'answer' not in data or 'model_used' not in data or 'confidence_score' not in data:
+                raise ValueError("Invalid LLM response format")
+
+            await reset_circuit_breaker_failures()
+            return data
+
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            failures = await increment_circuit_breaker_failures()
+
+            if attempt == settings.llm_retry_attempts - 1:
+                logger.error(f"[{request_id}] LLM call failed after {settings.llm_retry_attempts} attempts: {e}")
+                raise HTTPException(status_code=503, detail="LLM service unavailable")
+
+            # Exponential backoff with jitter
+            exponential_delay = base_delay * (2 ** attempt)
+            jitter = random.uniform(0, min(exponential_delay * 0.1, 1.0))
+            delay = min(exponential_delay + jitter, max_delay)
+
+            logger.info(f"[{request_id}] Retry {attempt + 1}/{settings.llm_retry_attempts} after {delay:.2f}s")
+            await asyncio.sleep(delay)
+
+        except ValueError as e:
+            logger.error(f"[{request_id}] Invalid LLM response: {e}")
+            raise HTTPException(status_code=502, detail="Invalid LLM response")
 
 
 @app.post("/query", response_model=QueryResponse)
