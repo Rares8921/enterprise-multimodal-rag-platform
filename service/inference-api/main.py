@@ -1,4 +1,4 @@
-import logging, random, asyncio, time, json, uuid, hashlib, re
+import logging, random, asyncio, time, json, uuid, hashlib, re, httpx
 from typing import Dict, List, Any
 
 from fastapi import FastAPI, Header, HTTPException
@@ -23,9 +23,18 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Document API", version="1.0.0")
 
 CACHE_HITS = Counter('cache_hits_total', 'Cache hits', ['tenant_id'])
+
 CONTEXT_SIZE = Histogram('context_size_chars', 'Context size in chars', ['tenant_id'])
+
+LLM_LATENCY = Histogram('llm_latency_seconds', 'LLM latency', ['tenant_id'])
+
+QUERY_DURATION = Histogram('query_duration_seconds', 'Query latency', ['tenant_id'])
 QUERY_FAILURES = Counter('query_failures_total', 'Failed queries', ['error_type', 'tenant_id'])
+QUERY_REQUESTS = Counter('query_requests_total', 'Total queries', ['tenant_id', 'doc_type'])
+QUERY_SUCCESS = Counter('query_success_total', 'Successful queries', ['tenant_id'])
+
 RATE_LIMIT_EXCEEDED = Counter('rate_limit_exceeded_total', 'Rate limit hits', ['tenant_id'])
+
 RETRIEVAL_LATENCY = Histogram('retrieval_latency_seconds', 'Retrieval latency', ['tenant_id'])
 
 app.add_middleware(
@@ -141,6 +150,14 @@ async def check_rate_limit(tenant_id: str) -> None:
             detail=f"Rate limit exceeded. Max {settings.rate_limit_per_minute} requests per minute."
         )
 
+
+def get_adaptive_cache_ttl(confidence_score: float) -> int:
+    if confidence_score >= 0.8:
+        return settings.cache_ttl_high_confidence
+    elif confidence_score >= 0.5:
+        return settings.cache_ttl
+    else:
+        return settings.cache_ttl_low_confidence
 
 
 async def check_circuit_breaker() -> bool:
