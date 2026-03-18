@@ -1,4 +1,4 @@
-import logging, random, asyncio, time, json, uuid, hashlib
+import logging, random, asyncio, time, json, uuid, hashlib, re
 from typing import Counter, Dict
 
 from fastapi import FastAPI, Header, HTTPException
@@ -53,6 +53,46 @@ embedding_semaphore: Optional[asyncio.Semaphore] = None
 
 tenant_semaphores: Dict[str, asyncio.Semaphore] = {}
 tenant_request_counts: Dict[str, int] = {}
+
+
+def sanitize_context(text: str) -> str:
+    # TODO: add more obviously
+    dangerous_patterns = [
+        r"ign[o0]re\s+(all\s+)?previous\s+instructions?",
+        r"disregard\s+previous",
+        r"forget\s+everything",
+        r"new\s+instructions?:",
+        r"system\s*:",
+        r"assistant\s*:",
+        r"<\|im_start\|>",
+        r"<\|im_end\|>",
+        r"<\|system\|>",
+        r"<\|user\|>",
+        r"<\|assistant\|>",
+        r"promptize",
+        r"jailbreak",
+        r"you\s+are\s+now",
+        r"act\s+as\s+if",
+        r"pretend\s+to\s+be",
+        r"simulate\s+that",
+        r"override\s+your",
+        r"bypass\s+your"
+    ]
+
+    sanitized = text
+    for pattern in dangerous_patterns:
+        sanitized = re.sub(pattern, "[FILTERED]", sanitized, flags=re.IGNORECASE)
+
+    # Remove control characters and excessive whitespace
+    sanitized = ''.join(char for char in sanitized if ord(char) >= 32 or char in '\n\t')
+    sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+
+    # Truncate extremely long single chunks
+    if len(sanitized) > 8000:
+        sanitized = sanitized[:8000] + "...[truncated]"
+
+    return sanitized
+
 
 def get_tenant_semaphore(tenant_id: str, max_concurrent_per_tenant: int = 5) -> asyncio.Semaphore:
     """Get or create semaphore for a tenant"""
