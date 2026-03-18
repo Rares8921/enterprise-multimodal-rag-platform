@@ -70,7 +70,6 @@ embedding_semaphore: Optional[asyncio.Semaphore] = None
 embedding_model: Optional[SentenceTransformer] = None
 embedding_model_cpu: Optional[SentenceTransformer] = None
 embedding_device: str = "cpu"
-embedding_semaphore: Optional[asyncio.Semaphore] = None
 
 tenant_semaphores: Dict[str, asyncio.Semaphore] = {}
 tenant_request_counts: Dict[str, int] = {}
@@ -878,6 +877,7 @@ async def process_query(request: QueryRequest, x_tenant_id: str = Header(...)):
         ).inc()
         raise HTTPException(status_code=504, detail="Request timeout")
 
+
 @app.get("/documents/{tenant_id}")
 async def list_documents(tenant_id: str, x_tenant_id: str = Header(...)):
     verified_tenant = await verify_tenant(x_tenant_id=x_tenant_id)
@@ -1040,6 +1040,7 @@ async def get_stats(tenant_id: str, x_tenant_id: str = Header(...)):
     except Exception as e:
         logger.error(f"Error getting stats: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
