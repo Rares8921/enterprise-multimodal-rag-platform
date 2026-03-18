@@ -1,4 +1,4 @@
-import logging, random, asyncio, time, json
+import logging, random, asyncio, time, json, uuid
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -12,12 +12,15 @@ from sentence_transformers import SentenceTransformer
 
 from config import Settings
 from auth import verify_tenant
+from QueryModel import QueryRequest, QueryResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Document API", version="1.0.0")
 settings = Settings()
+
+QUERY_FAILURES = Counter('query_failures_total', 'Failed queries', ['error_type', 'tenant_id'])
 
 app.add_middleware(
     CORSMiddleware,
@@ -149,6 +152,195 @@ async def add_to_delete_dlq(doc_id: str, doc_data: dict, failure_reason: str):
     await redis_client.lpush(dlq_key, json.dumps(task_data))
     logger.warning(f"Added document {doc_id} to delete DLQ: {failure_reason}")
 
+
+@app.post("/query", response_model=QueryResponse)
+async def process_query(request: QueryRequest, x_tenant_id: str = Header(...)):
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    tenant_id = None
+
+    async def _process():
+        nonlocal tenant_id
+
+        logger.info(f"[{request_id}] Query from tenant {x_tenant_id}: {request.query[:50]}")
+
+        # Verify tenant before acquiring semaphores
+        tenant_id = await verify_tenant(x_tenant_id=x_tenant_id)
+
+        if tenant_id != request.tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant ID mismatch")
+
+        # Get tenant-specific semaphore
+        tenant_sem = get_tenant_semaphore(tenant_id, max_concurrent_per_tenant=5)
+
+        # Acquire with fairness (global + tenant-specific)
+        await acquire_with_fairness(tenant_id, request_semaphore, tenant_sem, request_id)
+
+        try:
+            await check_rate_limit(tenant_id)
+
+            cache_key = build_cache_key(tenant_id, request)
+            cached_response = await redis_client.get(cache_key)
+
+            if cached_response:
+                logger.info(f"[{request_id}] Cache hit")
+                CACHE_HITS.labels(tenant_id=tenant_id).inc()
+                response_data = json.loads(cached_response)
+                response_data['latency_ms'] = (time.time() - start_time) * 1000
+                response_data['metadata']['cache_hit'] = True
+                response_data['metadata']['request_id'] = request_id
+                return QueryResponse(**response_data)
+
+            async with embedding_semaphore:
+                query_embedding = await encode_with_fallback(
+                    request.query,
+                    request_id
+                )
+
+            filter_dict = {}
+            if request.doc_type:
+                filter_dict['doc_type'] = request.doc_type
+            if request.doc_id:
+                filter_dict['doc_id'] = request.doc_id
+
+            context = []
+            retrieval_time = 0.0
+            retrieval_start = time.time()
+
+            try:
+                loop = asyncio.get_event_loop()
+                retrieval_task = loop.run_in_executor(
+                    None,
+                    lambda: query_pinecone_safe(
+                        query_embedding,
+                        request.top_k,
+                        tenant_id,
+                        filter_dict
+                    )
+                )
+
+                retrieval_results = await asyncio.wait_for(
+                    retrieval_task,
+                    timeout=settings.pinecone_timeout
+                )
+
+                for match in retrieval_results.get('matches', []):
+                    if match.get('score', 0) < settings.min_retrieval_score:
+                        continue
+
+                    metadata = match.get('metadata') or {}
+                    raw_text = metadata.get('text', '')
+                    sanitized_text = sanitize_context(raw_text)
+
+                    context.append({
+                        'text': sanitized_text,
+                        'page': metadata.get('page', 1),
+                        'type': metadata.get('type', 'text'),
+                        'doc_id': metadata.get('doc_id', ''),
+                        'filename': metadata.get('filename', ''),
+                        'score': match.get('score', 0.0)
+                    })
+
+                context = limit_context_size(context)
+
+                retrieval_time = time.time() - retrieval_start
+                RETRIEVAL_LATENCY.labels(tenant_id=tenant_id).observe(retrieval_time)
+
+                total_context_chars = sum(len(c['text']) for c in context)
+                CONTEXT_SIZE.labels(tenant_id=tenant_id).observe(total_context_chars)
+
+                logger.info(
+                    f"[{request_id}] Retrieved {len(context)} chunks, {total_context_chars} chars in {retrieval_time:.2f}s")
+
+            except Exception as e:
+                retrieval_time = time.time() - retrieval_start
+                logger.warning(
+                    f"[{request_id}] Pinecone query failed after {retrieval_time:.2f}s, continuing without retrieval: {e}")
+                context = []
+
+            if not context:
+                logger.info(f"[{request_id}] No context available, proceeding with LLM only")
+
+            llm_start = time.time()
+            llm_data = await call_llm_with_retry(
+                request.query,
+                context,
+                request.doc_type or 'generic',
+                tenant_id,
+                request.model_choice,
+                request_id
+            )
+            llm_time = time.time() - llm_start
+            LLM_LATENCY.labels(tenant_id=tenant_id).observe(llm_time)
+
+            answer = llm_data['answer']
+            if len(answer) > 5000:
+                logger.warning(f"[{request_id}] LLM response too long ({len(answer)} chars), truncating")
+                answer = answer[:5000] + "..."
+
+            latency_ms = (time.time() - start_time) * 1000
+
+            response_data = {
+                'answer': answer,
+                'citations': llm_data.get('citations', []) if request.include_citations else [],
+                'model_used': llm_data['model_used'],
+                'confidence_score': llm_data['confidence_score'],
+                'latency_ms': latency_ms,
+                'metadata': {
+                    'retrieval_count': len(context),
+                    'tokens_used': llm_data.get('tokens_used', 0),
+                    'cache_hit': False,
+                    'request_id': request_id
+                }
+            }
+
+            should_cache = (
+                    llm_data['confidence_score'] > 0.5 and
+                    len(context) > 0
+            )
+
+            if should_cache:
+                ttl = get_adaptive_cache_ttl(llm_data['confidence_score'])
+                await redis_client.setex(
+                    cache_key,
+                    ttl,
+                    json.dumps(response_data)
+                )
+
+            QUERY_REQUESTS.labels(
+                tenant_id=tenant_id,
+                doc_type=request.doc_type or 'all'
+            ).inc()
+            QUERY_SUCCESS.labels(tenant_id=tenant_id).inc()
+            QUERY_DURATION.labels(tenant_id=tenant_id).observe(latency_ms / 1000)
+
+            logger.info(
+                f"[{request_id}] Query processed: {latency_ms:.0f}ms, context={len(context)}, llm={llm_time:.2f}s, retrieval={retrieval_time:.2f}s, cached={should_cache}")
+
+            return QueryResponse(**response_data)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[{request_id}] Query processing error: {str(e)}")
+            QUERY_FAILURES.labels(
+                error_type=type(e).__name__,
+                tenant_id=tenant_id or request.tenant_id
+            ).inc()
+            raise HTTPException(status_code=500, detail=str(e))
+        finally:
+            # Always release semaphores
+            release_with_fairness(tenant_id, request_semaphore, tenant_sem)
+
+    try:
+        return await asyncio.wait_for(_process(), timeout=settings.request_timeout)
+    except asyncio.TimeoutError:
+        logger.error(f"[{request_id}] Request timeout after {settings.request_timeout}s")
+        QUERY_FAILURES.labels(
+            error_type='TimeoutError',
+            tenant_id=tenant_id or request.tenant_id
+        ).inc()
+        raise HTTPException(status_code=504, detail="Request timeout")
 
 @app.get("/documents/{tenant_id}")
 async def list_documents(tenant_id: str, x_tenant_id: str = Header(...)):
