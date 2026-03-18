@@ -1,5 +1,5 @@
 import logging, random, asyncio, time, json, uuid, hashlib, re
-from typing import Counter, Dict
+from typing import Dict
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -11,7 +11,9 @@ from pinecone import Pinecone
 from minio import Minio
 from sentence_transformers import SentenceTransformer
 
-from config import Settings
+from prometheus_client import Counter, Histogram
+
+from utils import limit_context_size, sanitize_context, settings
 from auth import verify_tenant
 from QueryModel import QueryRequest, QueryResponse
 
@@ -19,11 +21,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Document API", version="1.0.0")
-settings = Settings()
 
 CACHE_HITS = Counter('cache_hits_total', 'Cache hits', ['tenant_id'])
+CONTEXT_SIZE = Histogram('context_size_chars', 'Context size in chars', ['tenant_id'])
 QUERY_FAILURES = Counter('query_failures_total', 'Failed queries', ['error_type', 'tenant_id'])
 RATE_LIMIT_EXCEEDED = Counter('rate_limit_exceeded_total', 'Rate limit hits', ['tenant_id'])
+RETRIEVAL_LATENCY = Histogram('retrieval_latency_seconds', 'Retrieval latency', ['tenant_id'])
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,45 +56,6 @@ embedding_semaphore: Optional[asyncio.Semaphore] = None
 
 tenant_semaphores: Dict[str, asyncio.Semaphore] = {}
 tenant_request_counts: Dict[str, int] = {}
-
-
-def sanitize_context(text: str) -> str:
-    # TODO: add more obviously
-    dangerous_patterns = [
-        r"ign[o0]re\s+(all\s+)?previous\s+instructions?",
-        r"disregard\s+previous",
-        r"forget\s+everything",
-        r"new\s+instructions?:",
-        r"system\s*:",
-        r"assistant\s*:",
-        r"<\|im_start\|>",
-        r"<\|im_end\|>",
-        r"<\|system\|>",
-        r"<\|user\|>",
-        r"<\|assistant\|>",
-        r"promptize",
-        r"jailbreak",
-        r"you\s+are\s+now",
-        r"act\s+as\s+if",
-        r"pretend\s+to\s+be",
-        r"simulate\s+that",
-        r"override\s+your",
-        r"bypass\s+your"
-    ]
-
-    sanitized = text
-    for pattern in dangerous_patterns:
-        sanitized = re.sub(pattern, "[FILTERED]", sanitized, flags=re.IGNORECASE)
-
-    # Remove control characters and excessive whitespace
-    sanitized = ''.join(char for char in sanitized if ord(char) >= 32 or char in '\n\t')
-    sanitized = re.sub(r'\s+', ' ', sanitized).strip()
-
-    # Truncate extremely long single chunks
-    if len(sanitized) > 8000:
-        sanitized = sanitized[:8000] + "...[truncated]"
-
-    return sanitized
 
 
 def get_tenant_semaphore(tenant_id: str, max_concurrent_per_tenant: int = 5) -> asyncio.Semaphore:
