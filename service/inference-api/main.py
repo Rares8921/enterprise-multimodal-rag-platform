@@ -1,4 +1,5 @@
 import logging, random, asyncio, time, json, uuid
+from typing import Counter, Dict
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -44,6 +45,44 @@ embedding_model: Optional[SentenceTransformer] = None
 embedding_model_cpu: Optional[SentenceTransformer] = None
 embedding_device: str = "cpu"
 embedding_semaphore: Optional[asyncio.Semaphore] = None
+
+tenant_semaphores: Dict[str, asyncio.Semaphore] = {}
+tenant_request_counts: Dict[str, int] = {}
+
+def get_tenant_semaphore(tenant_id: str, max_concurrent_per_tenant: int = 5) -> asyncio.Semaphore:
+    """Get or create semaphore for a tenant"""
+    if tenant_id not in tenant_semaphores:
+        tenant_semaphores[tenant_id] = asyncio.Semaphore(max_concurrent_per_tenant)
+        tenant_request_counts[tenant_id] = 0
+    return tenant_semaphores[tenant_id]
+
+
+async def acquire_with_fairness(tenant_id: str, global_sem: asyncio.Semaphore, tenant_sem: asyncio.Semaphore, request_id: str):
+    """global first, then tenant-specific"""
+    # Acquire global semaphore first (to limit total concurrency)
+    await global_sem.acquire()
+
+    try:
+        # Then acquire tenant-specific semaphore
+        try:
+            await asyncio.wait_for(tenant_sem.acquire(), timeout=30.0)
+            tenant_request_counts[tenant_id] = tenant_request_counts.get(tenant_id, 0) + 1
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(f"[{request_id}] Tenant {tenant_id} semaphore timeout")
+            global_sem.release()
+            raise HTTPException(status_code=503, detail="Service busy, please retry later")
+    except:
+        global_sem.release()
+        raise
+
+
+def release_with_fairness(tenant_id: str, global_sem: asyncio.Semaphore, tenant_sem: asyncio.Semaphore):
+    """Release both semaphores"""
+    tenant_request_counts[tenant_id] = max(0, tenant_request_counts.get(tenant_id, 1) - 1)
+    tenant_sem.release()
+    global_sem.release()
+
 
 async def check_circuit_breaker() -> bool:
     cb_key = "circuit_breaker:llm"
@@ -295,8 +334,8 @@ async def process_query(request: QueryRequest, x_tenant_id: str = Header(...)):
             }
 
             should_cache = (
-                    llm_data['confidence_score'] > 0.5 and
-                    len(context) > 0
+                llm_data['confidence_score'] > 0.5 and
+                len(context) > 0
             )
 
             if should_cache:
