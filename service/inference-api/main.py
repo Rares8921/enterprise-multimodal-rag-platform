@@ -264,6 +264,22 @@ async def add_to_delete_dlq(doc_id: str, doc_data: dict, failure_reason: str):
     logger.warning(f"Added document {doc_id} to delete DLQ: {failure_reason}")
 
 
+def query_pinecone(vector_np, top_k: int, namespace: str, filter_dict: dict) -> dict:
+    try:
+        vector = vector_np.tolist() if hasattr(vector_np, 'tolist') else vector_np
+        index = pinecone_client.Index(settings.pinecone_index)
+        return index.query(
+            vector=vector,
+            top_k=top_k,
+            namespace=namespace,
+            filter=filter_dict if filter_dict else None,
+            include_metadata=True
+        )
+    except Exception as e:
+        logger.error(f"Pinecone query failed: {e}")
+        return {'matches': []}
+
+
 @app.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest, x_tenant_id: str = Header(...)):
     request_id = str(uuid.uuid4())
@@ -322,7 +338,7 @@ async def process_query(request: QueryRequest, x_tenant_id: str = Header(...)):
                 loop = asyncio.get_event_loop()
                 retrieval_task = loop.run_in_executor(
                     None,
-                    lambda: query_pinecone_safe(
+                    lambda: query_pinecone(
                         query_embedding,
                         request.top_k,
                         tenant_id,
