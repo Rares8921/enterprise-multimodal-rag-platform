@@ -1,6 +1,8 @@
 import logging, random, asyncio, time, json, uuid, hashlib, re, httpx
 from typing import Dict, List, Any
 
+import torch # fallback
+
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
@@ -10,6 +12,13 @@ import redis.asyncio as aioredis
 from pinecone import Pinecone
 from minio import Minio
 from sentence_transformers import SentenceTransformer
+
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+    logging.warning("tiktoken not available, falling back to char estimation")
 
 from prometheus_client import Counter, Histogram
 
@@ -65,6 +74,98 @@ embedding_semaphore: Optional[asyncio.Semaphore] = None
 
 tenant_semaphores: Dict[str, asyncio.Semaphore] = {}
 tenant_request_counts: Dict[str, int] = {}
+
+
+@app.on_event("startup")
+async def startup():
+    global redis_client, redis_pubsub_client, pinecone_client, pinecone_index, embedding_model, embedding_model_cpu, llm_client, minio_client, request_semaphore, embedding_semaphore, circuit_breaker_task, dlq_processor_task, embedding_device, tiktoken_encoder
+
+    logger.info("Starting Inference API...")
+
+    # Initialize encoder
+    if TIKTOKEN_AVAILABLE:
+        try:
+            tiktoken_encoder = tiktoken.get_encoding("cl100k_base")  # GPT-4/GPT-3.5-turbo encoding
+            logger.info("Tiktoken encoder initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize tiktoken: {e}")
+
+    redis_client = await aioredis.from_url(
+        settings.redis_url,
+        encoding="utf-8",
+        decode_responses=True
+    )
+
+    # Separate pubsub client for circuit breaker events
+    redis_pubsub_client = await aioredis.from_url(
+        settings.redis_url,
+        encoding="utf-8",
+        decode_responses=True
+    )
+
+    pinecone_client = Pinecone(api_key=settings.pinecone_api_key)
+    pinecone_index = pinecone_client.Index(settings.pinecone_index)
+
+    # Load embedding models with GPU fallback
+    if torch.cuda.is_available():
+        try:
+            embedding_model = SentenceTransformer(settings.embedding_model, device="cuda")
+            embedding_device = "cuda"
+            logger.info("Loaded embedding model on GPU")
+        except Exception as e:
+            logger.warning(f"Failed to load GPU embedding model: {e}, falling back to CPU")
+            embedding_model = SentenceTransformer(settings.embedding_model, device="cpu")
+            embedding_device = "cpu"
+    else:
+        embedding_model = SentenceTransformer(settings.embedding_model, device="cpu")
+        embedding_device = "cpu"
+        logger.info("GPU not available, loaded embedding model on CPU")
+
+    # Always load CPU fallback model
+    embedding_model_cpu = SentenceTransformer(settings.embedding_model, device="cpu")
+    logger.info("Loaded CPU fallback embedding model")
+
+    llm_client = httpx.AsyncClient(timeout=settings.llm_timeout)
+
+    minio_client = Minio(
+        settings.minio_endpoint,
+        access_key=settings.minio_access_key,
+        secret_key=settings.minio_secret_key,
+        secure=settings.minio_secure
+    )
+
+    request_semaphore = asyncio.Semaphore(settings.max_concurrent_requests)
+    embedding_semaphore = asyncio.Semaphore(10)
+
+    # Start circuit breaker listener in background
+    circuit_breaker_task = asyncio.create_task(circuit_breaker_listener())
+
+    # Start DLQ processor in background
+    dlq_processor_task = asyncio.create_task(process_delete_dlq())
+
+    logger.info("Inference API started successfully")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if circuit_breaker_task:
+        circuit_breaker_task.cancel()
+        try:
+            await circuit_breaker_task
+        except asyncio.CancelledError:
+            pass
+    if dlq_processor_task:
+        dlq_processor_task.cancel()
+        try:
+            await dlq_processor_task
+        except asyncio.CancelledError:
+            pass
+    if redis_pubsub_client:
+        await redis_pubsub_client.close()
+    if redis_client:
+        await redis_client.close()
+    if llm_client:
+        await llm_client.aclose()
 
 
 def get_tenant_semaphore(tenant_id: str, max_concurrent_per_tenant: int = 5) -> asyncio.Semaphore:
@@ -323,6 +424,65 @@ async def retry_delete_document(doc_id: str, tenant_id: str, object_name: Option
             logger.error(f"Retry delete failed for {doc_id} (attempt {attempt + 1}): {e}")
 
     return False
+
+
+async def process_delete_dlq():
+    """Background worker to process delete DLQ"""
+    logger.info("Delete DLQ processor started")
+
+    while True:
+        try:
+            await asyncio.sleep(60)  # Process every minute
+
+            dlq_key = "delete_dlq"
+            tasks = []
+
+            # Get all DLQ items (up to 100 at a time)
+            for _ in range(100):
+                task_json = await redis_client.rpop(dlq_key)
+                if not task_json:
+                    break
+                tasks.append(json.loads(task_json))
+
+            if not tasks:
+                continue
+
+            logger.info(f"Processing {len(tasks)} items from delete DLQ")
+
+            for task in tasks:
+                doc_id = task.get('doc_id')
+                tenant_id = task.get('tenant_id')
+                object_name = task.get('object_name')
+                retry_count = task.get('retry_count', 0)
+
+                # Max retries reached
+                if retry_count >= 5:
+                    logger.error(f"Max retries reached for {doc_id}, discarding from DLQ")
+                    continue
+
+                # Try again
+                success = await retry_delete_document(doc_id, tenant_id, object_name, max_retries=2)
+
+                if success:
+                    # Clean up Redis metadata
+                    try:
+                        await redis_client.delete(f"doc:{doc_id}")
+                        await redis_client.delete(f"doc:{doc_id}:ocr")
+                        await redis_client.delete(f"doc:{doc_id}:layout")
+                        await redis_client.delete(f"doc:{doc_id}:embeddings")
+                        await redis_client.srem(f"tenant_docs:{tenant_id}", doc_id)
+                        logger.info(f"Successfully deleted {doc_id} from DLQ processing")
+                    except Exception as cleanup_error:
+                        logger.error(f"Redis cleanup failed for {doc_id}: {cleanup_error}")
+                else:
+                    # Put back in DLQ with incremented retry count
+                    task['retry_count'] = retry_count + 1
+                    await redis_client.lpush(dlq_key, json.dumps(task))
+                    logger.warning(f"Re-queued {doc_id} to DLQ (retry {retry_count + 1})")
+
+        except Exception as e:
+            logger.error(f"DLQ processor error: {e}")
+            await asyncio.sleep(10)  # Wait before retrying processor itself
 
 
 async def add_to_delete_dlq(doc_id: str, doc_data: dict, failure_reason: str):
