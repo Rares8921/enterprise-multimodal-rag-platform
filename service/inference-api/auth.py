@@ -7,6 +7,7 @@ from typing import Optional
 import jwt
 from datetime import datetime, timedelta
 import os
+from abc import ABC
 
 from dataclasses import dataclass
 from pydantic import BaseModel, Field, field_validator
@@ -260,6 +261,51 @@ class TenantQuota(BaseModel):
     requests_per_day: Optional[int] = None
     total_documents: Optional[int] = None
     storage_mb: Optional[int] = None
+
+# TODO: implement storage with redis
+class APIKeyStore(ABC):
+    pass
+
+class JWTBlackList(ABC):
+    pass
+
+class QuotaStore(ABC):
+    pass
+
+# TODO: Revise In memory caching
+class InMemoryAPIKeyStore(APIKeyStore):
+    pass
+
+class InMemoryJWTBlackList(JWTBlackList):
+    pass
+
+class InMemoryQuotaStore(QuotaStore):
+    pass
+
+_api_key_store: Optional[APIKeyStore] = None
+_jwt_blacklist: Optional[JWTBlackList] = None
+_quota_store: Optional[QuotaStore] = None
+
+def get_api_key_store() -> APIKeyStore:
+    global _api_key_store
+    if _api_key_store is None:
+        _api_key_store = InMemoryAPIKeyStore()
+
+    return _api_key_store
+
+def get_jwt_blacklist() -> JWTBlackList:
+    global _jwt_blacklist
+    if _jwt_blacklist is None:
+        _jwt_blacklist = InMemoryJWTBlackList()
+
+    return _jwt_blacklist
+
+def quota_store() -> QuotaStore:
+    global _quota_store
+    if _quota_store is None:
+        _quota_store = InMemoryQuotaStore()
+
+    return _quota_store
 
 async def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """Verify JWT token authentication"""
