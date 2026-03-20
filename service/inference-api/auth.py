@@ -1,15 +1,17 @@
 """
 Authentication and user verification
 """
-from fastapi import Header, HTTPException, Depends
+from fastapi import Header, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import jwt
 from datetime import datetime, timedelta
 import os
 
+from dataclasses import dataclass
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal
+from typing import Literal, Set, List
+from enum import Enum
 
 security = HTTPBearer()
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", default="secret")
@@ -122,6 +124,76 @@ def get_auth_config() -> AuthConfig:
     return _config
 
 
+# Data models
+class AuthType(str, Enum):
+    API_KEY = "api_key"
+    JWT = "jwt"
+    OAUTH2 = "oauth2"
+    EXTERNAL = "external"
+
+class Permission(str, Enum):
+    # Document permissions
+    DOCUMENT_READ = "document:read"
+    DOCUMENT_WRITE = "document:write"
+    DOCUMENT_DELETE = "document:delete"
+
+    # Model permissions
+    MODEL_INFERENCE = "model:inference"
+    MODEL_TRAIN = "model:train"
+    MODEL_DEPLOY = "model:deploy"
+
+    # Admin permissions
+    ADMIN_API_KEY_MANAGE = "admin:api_key:manage"
+    ADMIN_TENANT_MANAGE = "admin:tenant:manage"
+    ADMIN_QUOTA_MANAGE = "admin:quota:manage"
+
+
+@dataclass(frozen=True)
+class AuthContext:
+    """
+    Context used by all methods, obv. immutable to prevent tampering.
+    """
+
+    tenant_id: str
+    auth_type: AuthType
+    scopes: Set[Permission]
+
+    # Optional metadata
+    subject: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+
+    # Rate limit & user quota
+    rate_limit_key: Optional[str] = None
+    quota_used: int = 0
+    quota_limit: Optional[int] = None
+
+    issued_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+    def has_permission(self, permission: Permission) -> bool:
+        return permission in self.scopes
+
+    def has_any_permission(self, permissions: List[Permission]) -> bool:
+        return bool(self.scopes & set(permissions))
+
+    def has_all_permissions(self, permissions: List[Permission]) -> bool:
+        return set(permissions).issubset(self.scopes)
+
+    def enforce_permission(self, permission: Permission) -> None:
+        if not self.has_any_permission(permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required permission: {permission}"
+            )
+
+    def enforce_quota(self) -> None:
+        if self.quota_limit is not None and self.quota_used >= self.quota_limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Quota exceeded for tenant {self.tenant_id}"
+            )
+
 def create_access_token(tenant_id: str, expires_delta: timedelta = timedelta(hours=24)) -> str:
     expire = datetime.utcnow() + expires_delta
     to_encode = {
@@ -160,6 +232,34 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> dict:
 
     return VALID_API_KEYS[x_api_key]
 
+
+class APIKeyMetadata(BaseModel):
+    key_id: str
+    key_hash: str # hash + salt + pepper
+    salt: str
+    tenant_id: str
+    name: str
+    scopes: List[Permission]
+
+    status: Literal["active", "expired", "revoked"] = "active"
+
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    last_used: Optional[datetime] = None
+
+    rate_limit_per_minute: Optional[int] = None
+    rate_limit_per_hour: Optional[int] = None
+
+    rotation_reminder_at: Optional[datetime] = None
+    rotated_from_key_id: Optional[str] = None
+
+
+class TenantQuota(BaseModel):
+    tenant_id: str
+    requests_per_hour: Optional[int] = None
+    requests_per_day: Optional[int] = None
+    total_documents: Optional[int] = None
+    storage_mb: Optional[int] = None
 
 async def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """Verify JWT token authentication"""
