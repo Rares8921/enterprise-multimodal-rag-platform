@@ -8,6 +8,9 @@ import jwt
 from datetime import datetime, timedelta
 import os
 
+from pydantic import BaseModel, Field
+from typing import Literal
+
 security = HTTPBearer()
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", default="secret")
 ALGORITHM = "HS256"
@@ -16,6 +19,72 @@ VALID_API_KEYS = {
     "test-api-key-001": {"tenant_id": "test-tenant-001", "name": "Test Client"},
     "test-api-key-002": {"tenant_id": "test-tenant-002", "name": "Demo Client"},
 }
+
+class AuthConfig(BaseModel):
+    """
+    Centralized authentication configuration.
+    Load from environment variables or configuration management system.
+    """
+    # JWT Configuration
+    jwt_secret_key: str = Field(
+        default_factory=lambda: os.getenv("JWT_SECRET_KEY", ""),
+        description="Secret key for JWT signing (HS256). Leave empty to require RS256."
+    )
+    jwt_algorithm: Literal["HS256", "RS256"] = Field(
+        default_factory=lambda: os.getenv("JWT_ALGORITHM", "RS256")
+    )
+    jwt_public_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("JWT_PUBLIC_KEY"),
+        description="Public key for RS256 verification"
+    )
+    jwt_private_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("JWT_PRIVATE_KEY"),
+        description="Private key for RS256 signing"
+    )
+    jwt_issuer: str = Field(
+        default_factory=lambda: os.getenv("JWT_ISSUER", "multimodal-doc-mlops")
+    )
+    jwt_audience: str = Field(
+        default_factory=lambda: os.getenv("JWT_AUDIENCE", "inference-api")
+    )
+    jwt_expiration_hours: int = Field(
+        default_factory=lambda: int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+    )
+
+    # OAuth2 Configuration
+    oauth2_enabled: bool = Field(
+        default_factory=lambda: os.getenv("OAUTH2_ENABLED", "false").lower() == "true"
+    )
+    oauth2_token_url: Optional[str] = Field(
+        default_factory=lambda: os.getenv("OAUTH2_TOKEN_URL")
+    )
+    oauth2_client_id: Optional[str] = Field(
+        default_factory=lambda: os.getenv("OAUTH2_CLIENT_ID")
+    )
+    oauth2_client_secret: Optional[str] = Field(
+        default_factory=lambda: os.getenv("OAUTH2_CLIENT_SECRET")
+    )
+
+    # External Provider Configuration
+    external_provider_enabled: bool = Field(
+        default_factory=lambda: os.getenv("EXTERNAL_PROVIDER_ENABLED", "false").lower() == "true"
+    )
+    external_provider_type: Optional[Literal["auth0", "cognito", "okta"]] = Field(
+        default_factory=lambda: os.getenv("EXTERNAL_PROVIDER_TYPE")
+    )
+    external_provider_jwks_url: Optional[str] = Field(
+        default_factory=lambda: os.getenv("EXTERNAL_PROVIDER_JWKS_URL")
+    )
+
+    # Security Settings
+    api_key_pepper: str = Field(
+        default_factory=lambda: os.getenv("API_KEY_PEPPER", ""),
+        description="Global pepper for API key hashing (in addition to per-key salt)"
+    )
+    require_secure_config: bool = Field(
+        default_factory=lambda: os.getenv("REQUIRE_SECURE_CONFIG", "true").lower() == "true"
+    )
+
 
 def create_access_token(tenant_id: str, expires_delta: timedelta = timedelta(hours=24)) -> str:
     expire = datetime.utcnow() + expires_delta
