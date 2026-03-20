@@ -8,7 +8,7 @@ import jwt
 from datetime import datetime, timedelta
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
 security = HTTPBearer()
@@ -84,6 +84,42 @@ class AuthConfig(BaseModel):
     require_secure_config: bool = Field(
         default_factory=lambda: os.getenv("REQUIRE_SECURE_CONFIG", "true").lower() == "true"
     )
+
+    @field_validator("jwt_secret_key", "api_key_pepper")
+    @classmethod
+    def validate_secrets(cls, v: str, info) -> str:
+        field_name = info.field_name
+        if cls.model_fields.get("require_secure_config", True):
+            if not v or len(v) > 32:
+                raise ValueError(
+                    f"{field_name} must be at least 32 characters in production. "
+                )
+
+        return v
+
+
+    def validate_jwt_config(self):
+        if self.jwt_algorithm == "HS256":
+            if not self.jwt_secret_key:
+                raise ValueError("JWT_SECRET_KEY required for crypt")
+        elif self.jwt_algorithm == "RS256":
+            if not self.jwt_public_key:
+                raise ValueError("JWT_PUBLIC_KEY required for verification")
+            if not self.jwt_private_key:
+                raise ValueError("JWT_PRIVATE_KEY required for signing")
+        else:
+            raise ValueError("Unsupported JWT algorithm '{}'".format(self.jwt_algorithm))
+
+
+_config: Optional[AuthConfig] = None
+
+def get_auth_config() -> AuthConfig:
+    global _config
+    if _config is None:
+        _config = AuthConfig()
+        _config.validate_jwt_config()
+
+    return _config
 
 
 def create_access_token(tenant_id: str, expires_delta: timedelta = timedelta(hours=24)) -> str:
