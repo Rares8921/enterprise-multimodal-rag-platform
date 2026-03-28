@@ -1,11 +1,13 @@
 import asyncio
 import redis.asyncio as aioredis
 from minio import Minio
+import time
 import mlflow
 from config import Settings
 from ..ingestion.queue import TaskQueue
 
 import logging
+from LayoutParser import LayoutParser
 
 # Settings
 settings = Settings()
@@ -20,6 +22,34 @@ device = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def process_layouts_worker(layout_parser: LayoutParser):
+    #Background worker
+    logger.info("Starting layout parsing worker")
+
+    while True:
+        try:
+            task = await task_queue.dequeue('layout_parsing', timeout=5)
+
+            if task:
+                next_retry = task.get('next_retry_at', 0)
+                if next_retry > time.time():
+                    continue
+
+                try:
+                    await process_layout(layout_parser, task)
+                    await task_queue.ack('layout_parsing', task)
+                except Exception as e:
+                    logger.error(f"Task processing error: {str(e)}")
+                    await task_queue.fail('layout_parsing', task)
+            else:
+                await asyncio.sleep(1)
+
+        except Exception as e:
+            logger.error(f"Worker error: {str(e)}")
+            await asyncio.sleep(5)
+
 
 async def startup():
     global redis_client, task_queue, minio_client, model, processor
