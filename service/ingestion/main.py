@@ -86,3 +86,29 @@ async def health_check():
         'service': 'ingestion',
         'redis': 'connected' if redis_client else 'disconnected'
     }
+
+
+@app.get("/documents/{doc_id}/status")
+async def get_document_status(doc_id: str, db: AsyncSession = Depends(get_db)):
+    # DB for persistence, fallback to Redis
+    doc = await db.get(Document, doc_id)
+    if not doc:
+        # Fallback to Redis just in case
+        doc_data = await redis_client.hgetall(f"doc:{doc_id}")
+        if not doc_data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return {
+            'doc_id': doc_id,
+            'status': doc_data.get('status'),
+            'filename': doc_data.get('filename'),
+            'uploaded_at': doc_data.get('uploaded_at'),
+            'error': doc_data.get('error')
+        }
+
+    return {
+        'doc_id': doc.doc_id,
+        'status': doc.status.value,
+        'filename': doc.filename,
+        'uploaded_at': doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+        'error': doc.last_error
+    }
