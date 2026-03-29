@@ -25,6 +25,55 @@ redis_client: Optional[aioredis.Redis] = None
 complexity_analyzer: Optional[QueryComplexityAnalyzer] = None
 gemini_model = None
 mistral_client: Optional[httpx.AsyncClient] = None
+mistral_model = None
+model_router = None
+
+@app.get("/health/live")
+async def health_live():
+    """Liveness probe"""
+    return {"status": "alive"}
+
+
+@app.get("/health")
+@app.get("/health/ready")
+async def health_ready():
+    deps = {
+        "redis": "down",
+        "gemini": "down",
+        "mistral": "down"
+    }
+    status = "healthy"
+
+    # Check Redis
+    if redis_client:
+        try:
+            await redis_client.ping()
+            deps["redis"] = "ok"
+        except Exception as e:
+            logger.error(f"Redis health check failed: {str(e)}")
+            status = "degraded"
+    else:
+        logger.error("Redis client is None")
+        status = "degraded"
+
+    # Check Gemini
+    if gemini_model and gemini_model.model:
+        deps["gemini"] = "ok"
+    else:
+        logger.error("Gemini model is not initialized")
+        status = "degraded"
+
+    # Check Mistral
+    if mistral_model and mistral_model.client:
+        deps["mistral"] = "ok"
+    else:
+        logger.error("Mistral model client is not initialized")
+        status = "degraded"
+
+    return {
+        "status": status,
+        "dependencies": deps
+    }
 
 if __name__ == "__main__":
     import uvicorn
