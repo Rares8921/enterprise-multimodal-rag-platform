@@ -2,8 +2,10 @@ from typing import Optional
 import httpx
 import redis.asyncio as aioredis
 import mlflow
+import time
 from typing import Dict, List, Any
 import re
+import hashlib, json
 
 from prompt_manager import PromptManager
 prompt_manager = PromptManager()
@@ -11,7 +13,7 @@ prompt_manager = PromptManager()
 from complexity_analyzer import QueryComplexityAnalyzer
 
 from model_wrapper import GeminiLLM, MistralLLM
-from utils import ModelRouter
+from utils import ModelRouter, QueryResponse, QueryRequest, ModelChoice
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +26,7 @@ LLM_DURATION = Histogram('llm_inference_seconds', 'LLM inference duration', ['mo
 LLM_TOKENS = Counter('llm_tokens_total', 'Total tokens processed', ['model', 'type'])
 LLM_COST = Counter('llm_cost_dollars', 'Estimated LLM cost in dollars', ['model'])
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 app = FastAPI(title="LLM Orchestrator", version="1.0.0")
 
 from config import Settings
@@ -187,6 +189,130 @@ def extract_citations(answer: str, context: List[Dict[str, Any]]) -> List[Dict[s
 
     return citations
 
+
+@app.post("/generate", response_model=QueryResponse)
+async def generate_response(request: QueryRequest):
+    if not all([redis_client, model_router, gemini_model, mistral_model]):
+        logger.error("Global components not initialized")
+        raise HTTPException(status_code=503, detail="Service unavailable: components not initialized")
+
+    start_time = time.time()
+
+    try:
+        # Optimize context hashing & token estimation
+        context_dump = json.dumps(request.context, sort_keys=True)
+        context_tokens = int(len(context_dump) / 4)
+
+        # Model routing
+        selected_model = model_router.select_model(
+            request.query,
+            context_tokens,
+            request.doc_type,
+            force_model=request.model_choice.value if request.model_choice != ModelChoice.AUTO else None
+        )
+
+        # Check cache with robust key
+        hash_input = f"{request.tenant_id}|{request.query}|{context_dump}|{request.doc_type}|{selected_model}|{request.temperature}|{request.max_tokens}".encode(
+            'utf-8')
+        stable_hash = hashlib.sha256(hash_input).hexdigest()
+        cache_key = f"llm_cache:{request.tenant_id}:{request.doc_type}:{selected_model}:{stable_hash}"
+
+        cached_data = await redis_client.get(cache_key)
+        if cached_data:
+            logger.info("Cache HIT. Returning cached response.")
+            cached_response = json.loads(cached_data)
+            return QueryResponse(**cached_response)
+
+        # Build prompt
+        prompt = build_rag_prompt(
+            query=request.query,
+            context=request.context,
+            doc_type=request.doc_type
+        )
+
+        try:
+            with LLM_DURATION.labels(model=selected_model).time():
+                if selected_model == 'gemini':
+                    result = await gemini_model.generate(
+                        prompt,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens
+                    )
+                else:
+                    result = await mistral_model.generate(
+                        prompt,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens
+                    )
+        except Exception as e:
+            if selected_model == 'gemini':
+                logger.warning(f"Fallback activated. Gemini error: {str(e)}. Falling back to Mistral.")
+                selected_model = 'mistral'
+
+                # Update cache key for fallback model
+                hash_input = f"{request.tenant_id}|{request.query}|{context_dump}|{request.doc_type}|{selected_model}|{request.temperature}|{request.max_tokens}".encode(
+                    'utf-8')
+                stable_hash = hashlib.sha256(hash_input).hexdigest()
+                cache_key = f"llm_cache:{request.tenant_id}:{request.doc_type}:{selected_model}:{stable_hash}"
+
+                try:
+                    with LLM_DURATION.labels(model=selected_model).time():
+                        result = await mistral_model.generate(
+                            prompt,
+                            temperature=request.temperature,
+                            max_tokens=request.max_tokens
+                        )
+                except Exception as fallback_e:
+                    logger.error(f"Mistral fallback also failed: {str(fallback_e)}")
+                    raise HTTPException(status_code=500, detail="All models failed. Fallback exhausted.")
+            else:
+                logger.error(f"Mistral generation failed: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Model generation failed: {str(e)}")
+
+        logger.info(f"Successfully generated response using model: {selected_model}")
+
+        answer = result['text']
+        usage = result['usage']
+
+        # Extract citations from answer
+        citations = extract_citations(answer, request.context)
+
+        confidence = calculate_confidence(answer, citations)
+
+        LLM_REQUESTS.labels(model=selected_model, doc_type=request.doc_type).inc()
+        LLM_TOKENS.labels(model=selected_model, type='input').inc(usage['input_tokens'])
+        LLM_TOKENS.labels(model=selected_model, type='output').inc(usage['output_tokens'])
+
+        # Track cost
+        cost = model_router.estimate_cost(selected_model, usage['input_tokens'], usage['output_tokens'])
+        LLM_COST.labels(model=selected_model).inc(cost)
+
+        # Latency calc & return ans
+        latency_ms = (time.time() - start_time) * 1000
+
+        response_obj = QueryResponse(
+            answer=answer,
+            model_used=selected_model,
+            citations=citations,
+            confidence_score=confidence,
+            tokens_used=usage['total_tokens'],
+            latency_ms=latency_ms
+        )
+
+        # Store in cache
+        await redis_client.setex(
+            cache_key,
+            3600, # 1 hour TTL
+            response_obj.model_dump_json() if hasattr(response_obj, 'model_dump_json') else response_obj.json()
+        )
+
+        return response_obj
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating response: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
