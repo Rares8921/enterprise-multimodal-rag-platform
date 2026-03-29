@@ -2,6 +2,7 @@ from typing import Optional
 import httpx
 import redis.asyncio as aioredis
 import mlflow
+from typing import Dict, List
 
 from complexity_analyzer import QueryComplexityAnalyzer
 from model_wrapper import GeminiLLM, MistralLLM
@@ -115,6 +116,32 @@ async def health_ready():
         "status": status,
         "dependencies": deps
     }
+
+
+def calculate_confidence(answer: str, citations: List[Dict]) -> float:
+    # Calculate confidence score based on
+    # 1. Presence of citations
+    # 2. Answer length (not too short/long)
+    # 3. Absence of hedging language
+
+    score = 0.5  # Base score
+
+    # Citations boost confidence
+    if citations:
+        score += min(0.3, len(citations) * 0.1)
+
+    # Reasonable length using token approximation
+    tokens = int(len(answer) / 4)
+    if 50 < tokens < 500:
+        score += 0.1
+
+    # Hedging language reduces confidence
+    hedging_words = ['maybe', 'perhaps', 'might', 'could be', 'unclear', 'not sure']
+    hedge_count = sum(1 for word in hedging_words if word in answer.lower())
+    score -= hedge_count * 0.05
+
+    return max(0.0, min(1.0, score))
+
 
 if __name__ == "__main__":
     import uvicorn
