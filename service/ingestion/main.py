@@ -1,4 +1,7 @@
 import logging
+import io
+import datetime
+import json, hashlib, uuid
 from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
@@ -112,3 +115,98 @@ async def get_document_status(doc_id: str, db: AsyncSession = Depends(get_db)):
         'uploaded_at': doc.uploaded_at.isoformat() if doc.uploaded_at else None,
         'error': doc.last_error
     }
+
+
+@app.post("/documents/upload")
+async def upload_document(
+        file: UploadFile = File(...),
+        tenant_id: str = Form(...),
+        doc_type: str = Form(...),
+        metadata: Optional[str] = Form(None),
+        db: AsyncSession = Depends(get_db)
+):
+    with INGESTION_DURATION.time():
+        try:
+            # Input Validation
+            if file.content_type not in VALID_MIME_TYPES:
+                raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
+
+            if doc_type not in ['legal_contract', 'financial_report']:
+                raise HTTPException(status_code=400, detail="Invalid document type")
+
+            parsed_metadata = None
+            if metadata:
+                try:
+                    parsed_metadata = json.loads(metadata)
+                except json.JSONDecodeError:
+                    raise HTTPException(status_code=400, detail="Invalid JSON format for metadata")
+
+            # Safely read and enforce size limit
+            max_bytes = getattr(settings, 'max_file_size_mb', 100) * 1024 * 1024
+            content = await file.read()
+            if len(content) > max_bytes:
+                raise HTTPException(status_code=413,
+                                    detail=f"File exceeds maximum size of {settings.max_file_size_mb}MB")
+            if len(content) == 0:
+                raise HTTPException(status_code=400, detail="Empty file")
+
+            # Content deduplication hash
+            content_hash = hashlib.sha256(content).hexdigest()
+            doc_id = str(uuid.uuid4())
+
+            # Save to MinIO
+            object_name = f"{tenant_id}/{doc_id}/{file.filename}"
+            minio_client.put_object(
+                settings.minio_bucket,
+                object_name,
+                io.BytesIO(content),
+                length=len(content),
+                content_type=file.content_type
+            )
+
+            # persist to PostgreSQL
+            new_doc = Document(
+                doc_id=doc_id,
+                tenant_id=tenant_id,
+                doc_type=doc_type,
+                filename=file.filename,
+                bucket_name=settings.minio_bucket,
+                object_name=object_name,
+                content_hash=content_hash,
+                file_size=len(content),
+                status=DocumentStatus.UPLOADED,
+                document_metadata=parsed_metadata,
+                ocr_engine=settings.ocr_engine
+            )
+            db.add(new_doc)
+            await db.flush()  # Ensure it flushes to DB safely
+
+            # Save to Redis
+            doc_meta_dict = {
+                'doc_id': doc_id,
+                'tenant_id': tenant_id,
+                'doc_type': doc_type,
+                'filename': file.filename,
+                'object_name': object_name,
+                'file_size': len(content),
+                'status': DocumentStatus.UPLOADED.value,
+                'uploaded_at': datetime.utcnow().isoformat()
+            }
+            await redis_client.hset(f"doc:{doc_id}", mapping=doc_meta_dict)
+
+            # Queue for OCR
+            await task_queue.enqueue('ocr_processing', doc_meta_dict)
+            DOCUMENTS_UPLOADED.labels(tenant_id=tenant_id, doc_type=doc_type).inc()
+            logger.info(f"Document uploaded: {doc_id} for tenant {tenant_id}")
+
+            return {
+                'doc_id': doc_id,
+                'status': DocumentStatus.UPLOADED.value,
+                'message': 'Document queued for processing'
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error uploading document: {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal server error during upload")
