@@ -1,7 +1,11 @@
 from typing import Optional
 import httpx
 import redis.asyncio as aioredis
+import mlflow
+
 from complexity_analyzer import QueryComplexityAnalyzer
+from model_wrapper import GeminiLLM, MistralLLM
+from utils import ModelRouter
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +31,43 @@ gemini_model = None
 mistral_client: Optional[httpx.AsyncClient] = None
 mistral_model = None
 model_router = None
+
+
+@app.on_event("startup")
+async def startup():
+    global redis_client, complexity_analyzer, gemini_model, mistral_client, mistral_model, model_router
+
+    # Redis
+    redis_client = await aioredis.from_url(
+        settings.redis_url,
+        encoding="utf-8",
+        decode_responses=True
+    )
+
+    # Complexity analyzer
+    complexity_analyzer = QueryComplexityAnalyzer()
+
+    # Initialize Router
+    model_router = ModelRouter(settings, complexity_analyzer)
+
+    # Initialize LLMs
+    gemini_model = GeminiLLM(settings.gemini_api_key)
+
+    mistral_client = httpx.AsyncClient()
+    mistral_model = MistralLLM(settings.mistral_api_url, mistral_client)
+
+    # MLflow
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+
+    logger.info("LLM Orchestrator started")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if redis_client:
+        await redis_client.close()
+    if mistral_client:
+        await mistral_client.aclose()
 
 @app.get("/health/live")
 async def health_live():
