@@ -2,9 +2,14 @@ from typing import Optional
 import httpx
 import redis.asyncio as aioredis
 import mlflow
-from typing import Dict, List
+from typing import Dict, List, Any
+import re
+
+from prompt_manager import PromptManager
+prompt_manager = PromptManager()
 
 from complexity_analyzer import QueryComplexityAnalyzer
+
 from model_wrapper import GeminiLLM, MistralLLM
 from utils import ModelRouter
 
@@ -118,6 +123,26 @@ async def health_ready():
     }
 
 
+def build_rag_prompt(query: str, context: List[Dict[str, Any]], doc_type: str) -> str:
+    template = prompt_manager.get_prompt_template(doc_type)
+
+    # Format context chunks
+    context_parts = []
+    for i, ctx in enumerate(context[:10], 1):  # Top 10 chunks
+        context_parts.append(
+            f"[{i}] (Page {ctx.get('page', 'N/A')}, {ctx.get('type', 'text')})\n{ctx.get('text', '')}"
+        )
+
+    context_str = '\n\n'.join(context_parts)
+
+    prompt = template.format(
+        context=context_str,
+        query=query
+    )
+
+    return prompt
+
+
 def calculate_confidence(answer: str, citations: List[Dict]) -> float:
     # Calculate confidence score based on
     # 1. Presence of citations
@@ -141,6 +166,26 @@ def calculate_confidence(answer: str, citations: List[Dict]) -> float:
     score -= hedge_count * 0.05
 
     return max(0.0, min(1.0, score))
+
+
+def extract_citations(answer: str, context: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    # Simple citation extraction based on [N] markers
+    citation_pattern = r'\[(\d+)\]'
+    cited_indices = set(int(m) for m in re.findall(citation_pattern, answer))
+
+    citations = []
+    for idx in cited_indices:
+        if 0 < idx <= len(context):
+            ctx = context[idx - 1]
+            citations.append({
+                'index': idx,
+                'page': ctx.get('page'),
+                'text': ctx.get('text', '')[:200],
+                'doc_id': ctx.get('doc_id'),
+                'filename': ctx.get('filename')
+            })
+
+    return citations
 
 
 if __name__ == "__main__":
