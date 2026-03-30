@@ -161,6 +161,122 @@ def finetune_layoutlm(
         raise
 
 
+@dsl.component(
+    base_image='pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime',
+    packages_to_install=['mlflow==2.10.0', 'transformers==4.37.0', 'datasets', 'scikit-learn']
+)
+def evaluate_model(
+        model_path: InputPath(str),
+        dataset_path: InputPath(str),
+        metrics_path: OutputPath(str),
+        num_labels: int,
+        mlflow_tracking_uri: str
+):
+    import json
+    import logging
+    import torch
+    import mlflow
+    from transformers import LayoutLMv3ForTokenClassification, LayoutLMv3Processor
+    from datasets import load_from_disk
+    from sklearn.metrics import precision_recall_fscore_support, accuracy_score, confusion_matrix
+    import numpy as np
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    try:
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+        dataset = load_from_disk(dataset_path)
+        if 'test' not in dataset:
+            raise ValueError("Dataset does not contain a 'test' split for evaluation.")
+        test_dataset = dataset['test']
+
+        model = LayoutLMv3ForTokenClassification.from_pretrained(model_path)
+        processor = LayoutLMv3Processor.from_pretrained(model_path)
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model.to(device)
+        model.eval()
+
+        all_predictions = []
+        all_labels = []
+
+        with torch.no_grad():
+            for sample in test_dataset:
+                encoding = processor(
+                    sample['image'],
+                    sample['words'],
+                    boxes=sample['boxes'],
+                    return_tensors='pt',
+                    truncation=True,
+                    padding="max_length"
+                )
+
+                encoding = {k: v.to(device) for k, v in encoding.items()}
+
+                outputs = model(**encoding)
+                predictions = outputs.logits.argmax(-1).reshape(-1).tolist()
+                labels = sample['labels']
+
+                for pred, label in zip(predictions, labels):
+                    if label != -100:
+                        all_predictions.append(pred)
+                        all_labels.append(label)
+
+        all_predictions = np.array(all_predictions)
+        all_labels = np.array(all_labels)
+
+        accuracy = accuracy_score(all_labels, all_predictions)
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            all_labels,
+            all_predictions,
+            average='weighted',
+            zero_division=0
+        )
+
+        per_class_precision, per_class_recall, per_class_f1, support = precision_recall_fscore_support(
+            all_labels,
+            all_predictions,
+            labels=list(range(num_labels)),
+            average=None,
+            zero_division=0
+        )
+
+        conf_matrix = confusion_matrix(all_labels, all_predictions, labels=list(range(num_labels)))
+
+        metrics = {
+            'accuracy': float(accuracy),
+            'precision': float(precision),
+            'recall': float(recall),
+            'f1': float(f1),
+            'confusion_matrix': conf_matrix.tolist(),
+            'per_class_metrics': {
+                f'class_{i}': {
+                    'precision': float(per_class_precision[i]),
+                    'recall': float(per_class_recall[i]),
+                    'f1': float(per_class_f1[i]),
+                    'support': int(support[i])
+                }
+                for i in range(num_labels)
+            }
+        }
+
+        with open(metrics_path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+
+        mlflow.log_metrics({
+            'test_accuracy': accuracy,
+            'test_precision': precision,
+            'test_recall': recall,
+            'test_f1': f1
+        })
+
+    except Exception as e:
+        logger.error(f"Evaluation failed: {str(e)}")
+        raise
+
+
 @dsl.pipeline(
     name='LayoutLM Fine-tuning Pipeline',
     description='Robust Fine-tune LayoutLM for document structure extraction'
