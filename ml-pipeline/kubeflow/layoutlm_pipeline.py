@@ -1,4 +1,63 @@
 from kfp import dsl
+from kfp.dsl import InputPath, OutputPath
+
+@dsl.component(
+    base_image='python:3.11',
+    packages_to_install=['transformers', 'torch', 'datasets']
+)
+def load_dataset(
+        dataset_path: str,
+        output_dataset_path: OutputPath(str),
+        smoke_test: bool = False
+):
+    import json
+    import logging
+    from datasets import Dataset, DatasetDict
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info(f"Loading dataset from {dataset_path}")
+        with open(dataset_path, 'r') as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            raise ValueError("Dataset must be a dictionary containing splits (train, validation, test).")
+
+        if 'train' in data:
+            dataset = DatasetDict({
+                split: Dataset.from_dict(split_data)
+                for split, split_data in data.items()
+            })
+        else:
+            dataset = Dataset.from_dict(data)
+
+        data_to_validate = dataset['train'] if 'train' in dataset else dataset
+        sample_size = min(100, len(data_to_validate))
+        required_keys = ['image', 'words', 'boxes', 'labels']
+
+        for i in range(sample_size):
+            for key in required_keys:
+                if key not in data_to_validate[i]:
+                    raise KeyError(f"Missing required key '{key}' in dataset schema at index {i}.")
+
+        if smoke_test:
+            logger.info("Smoke test enabled. Subsetting dataset.")
+            if 'train' in dataset:
+                dataset = DatasetDict({
+                    split: split_data.select(range(min(10, len(split_data))))
+                    for split, split_data in dataset.items()
+                })
+            else:
+                dataset = dataset.select(range(min(10, len(dataset))))
+
+        dataset.save_to_disk(output_dataset_path)
+        logger.info(f"Dataset saved to {output_dataset_path}")
+
+    except Exception as e:
+        logger.error(f"Failed to load dataset: {str(e)}")
+        raise
 
 @dsl.pipeline(
     name='LayoutLM Fine-tuning Pipeline',
