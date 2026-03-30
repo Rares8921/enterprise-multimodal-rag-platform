@@ -277,6 +277,50 @@ def evaluate_model(
         raise
 
 
+@dsl.component(
+    base_image='python:3.11',
+    packages_to_install=['mlflow==2.10.0']
+)
+def register_model(
+        model_version: str,
+        metrics_path: InputPath(str),
+        experiment_name: str,
+        mlflow_tracking_uri: str,
+        min_accuracy: float
+) -> str:
+    import json
+    import logging
+    import mlflow
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    try:
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+        with open(metrics_path, 'r') as f:
+            model_metrics = json.load(f)
+
+        accuracy = model_metrics.get('accuracy', 0.0)
+
+        if accuracy >= min_accuracy:
+            model_uri = f"runs:/{model_version}/model"
+            mlflow.register_model(
+                model_uri,
+                name=f"{experiment_name}-layoutlm",
+                tags={'accuracy': str(accuracy), 'status': 'approved'}
+            )
+            status = "registered"
+        else:
+            status = "rejected"
+
+        return status
+
+    except Exception as e:
+        logger.error(f"Model registration failed: {str(e)}")
+        raise
+
+
 @dsl.pipeline(
     name='LayoutLM Fine-tuning Pipeline',
     description='Robust Fine-tune LayoutLM for document structure extraction'
