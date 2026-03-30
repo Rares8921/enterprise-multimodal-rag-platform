@@ -35,7 +35,6 @@ class QueryRequest(BaseModel):
             raise ValueError('Field too long (max 100 characters)')
         return v
 
-
 class QueryResponse(BaseModel):
     answer: str
     citations: List[Dict[str, Any]]
