@@ -3,6 +3,9 @@ import numpy as np
 import torch
 import mlflow
 import logging
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -27,3 +30,17 @@ def setup_mlflow(tracking_uri: str, experiment_name: str) -> None:
     if tracking_uri:
         mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment_name)
+
+
+def get_http_client() -> requests.Session:
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["POST", "GET"]
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
