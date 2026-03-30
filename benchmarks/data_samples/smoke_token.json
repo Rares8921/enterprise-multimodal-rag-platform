@@ -1,0 +1,16 @@
+[
+  {
+    "id": "1",
+    "text": "The standard termination clause requires a 30-day notice period.",
+    "tokens": ["The", "standard", "termination", "clause", "requires", "a", "30-day", "notice", "period", "."],
+    "labels": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    "mock_predictions": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0]
+  },
+  {
+    "id": "2",
+    "text": "The liability cap is set at 50000 USD for standard breaches.",
+    "tokens": ["The", "liability", "cap", "is", "set", "at", "50000", "USD", "for", "standard", "breaches", "."],
+    "labels": [0, 0, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0],
+    "mock_predictions": [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0]
+  }
+]

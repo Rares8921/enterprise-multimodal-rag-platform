@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1",
+    "query": "Termination notice period rules",
+    "relevant_ids": ["doc_term_01", "doc_term_02"],
+    "mock_retrieved_ids": [
+      "doc_term_01",
+      "doc_random_99",
+      "doc_term_02",
+      "doc_random_01",
+      "doc_random_02"
+    ]
+  },
+  {
+    "id": "2",
+    "query": "Standard breaches liability cap",
+    "relevant_ids": ["doc_liab_10"],
+    "mock_retrieved_ids": [
+      "doc_liab_10",
+      "doc_liab_11",
+      "doc_random_03",
+      "doc_random_04",
+      "doc_random_05"
+    ]
+  }
+]
