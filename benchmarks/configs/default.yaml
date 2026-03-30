@@ -1,0 +1,28 @@
+global:
+  seed: 1235
+  smoke_test: true
+  device: "cpu"
+  batch_size: 4
+  output_dir: "benchmarks/results"
+  mlflow_tracking_uri: "http://localhost:5000"
+  experiment_name: "production_benchmarks"
+
+tasks:
+  legal_qa_eval:
+    module: "qa"
+    evaluator_class: "QAEvaluator"
+    model_path: "http://inference-api:8000/query"
+    dataset_path: "benchmarks/data_samples/smoke_qa.json"
+    
+  pinecone_retrieval_eval:
+    module: "retrieval"
+    evaluator_class: "RetrievalEvaluator"
+    model_path: "pinecone-index-v2"
+    dataset_path: "benchmarks/data_samples/smoke_retrieval.json"
+
+  token_class_eval:
+    module: "token_classification"
+    evaluator_class: "TokenClassificationEvaluator"
+    model_path: "layoutlm-v3-finetuned"
+    dataset_path: "benchmarks/data_samples/smoke_token.json"
+    ignore_index: -100

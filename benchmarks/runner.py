@@ -1,4 +1,3 @@
-# benchmark/runner.py
 import argparse
 import yaml
 import importlib
@@ -17,7 +16,7 @@ def load_config(config_path: str) -> dict:
 
 def run_task(task_name: str, task_config: dict, global_config: dict) -> dict:
     class_name = task_config.get("evaluator_class")
-    module_name = f"benchmark.tasks.{task_config.get('module')}"
+    module_name = f"benchmarks.tasks.{task_config.get('module')}"
 
     logger.info(f"Initializing {class_name} from {module_name}")
     module = importlib.import_module(module_name)
@@ -31,7 +30,7 @@ def run_task(task_name: str, task_config: dict, global_config: dict) -> dict:
 
     metrics = evaluator.compute_metrics()
 
-    output_dir = global_config.get("output_dir", "./benchmark/results")
+    output_dir = global_config.get("output_dir", "./benchmarks/results")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = os.path.join(output_dir, f"{task_name}_{timestamp}.json")
     evaluator.save_results(output_path, metrics)
