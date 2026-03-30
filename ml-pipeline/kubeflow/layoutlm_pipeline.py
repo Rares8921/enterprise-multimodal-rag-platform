@@ -59,6 +59,108 @@ def load_dataset(
         logger.error(f"Failed to load dataset: {str(e)}")
         raise
 
+
+@dsl.component(
+    base_image='pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime',
+    packages_to_install=['transformers==4.37.0', 'mlflow==2.10.0', 'accelerate', 'datasets']
+)
+def finetune_layoutlm(
+        dataset_path: InputPath(str),
+        output_model_path: OutputPath(str),
+        model_name: str,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        experiment_name: str,
+        mlflow_tracking_uri: str,
+        num_labels: int,
+        smoke_test: bool = False
+) -> NamedTuple('Outputs', [('model_version', str), ('model_path', str)]):
+    import logging
+    import mlflow
+    import os
+    import torch
+    import warnings
+    from transformers import (
+        LayoutLMv3ForTokenClassification,
+        LayoutLMv3Processor,
+        TrainingArguments,
+        Trainer
+    )
+    from datasets import load_from_disk
+
+    warnings.filterwarnings("ignore")
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    try:
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+        mlflow.set_experiment(experiment_name)
+
+        with mlflow.start_run() as run:
+            mlflow.log_params({
+                'model_name': model_name,
+                'epochs': epochs,
+                'batch_size': batch_size,
+                'learning_rate': learning_rate,
+                'num_labels': num_labels,
+                'smoke_test': smoke_test
+            })
+
+            dataset = load_from_disk(dataset_path)
+            train_dataset = dataset['train'] if 'train' in dataset else dataset
+            eval_dataset = dataset['validation'] if 'validation' in dataset else None
+
+            model = LayoutLMv3ForTokenClassification.from_pretrained(
+                model_name,
+                num_labels=num_labels
+            )
+            processor = LayoutLMv3Processor.from_pretrained(model_name)
+
+            checkpoint_dir = os.path.join(output_model_path, "checkpoints")
+
+            training_args = TrainingArguments(
+                output_dir=checkpoint_dir,
+                num_train_epochs=1 if smoke_test else epochs,
+                per_device_train_batch_size=batch_size,
+                gradient_accumulation_steps=1 if smoke_test else 2,
+                learning_rate=learning_rate,
+                logging_strategy="epoch",
+                save_strategy="epoch",
+                evaluation_strategy="epoch" if eval_dataset else "no",
+                load_best_model_at_end=True if eval_dataset else False,
+                metric_for_best_model="f1" if eval_dataset else None,
+                save_total_limit=3,
+                report_to=["mlflow"],
+                fp16=torch.cuda.is_available(),
+                max_steps=5 if smoke_test else -1
+            )
+
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
+                tokenizer=processor.tokenizer
+            )
+
+            resume = os.path.exists(checkpoint_dir) and len(os.listdir(checkpoint_dir)) > 0
+            trainer.train(resume_from_checkpoint=resume)
+
+            model.save_pretrained(output_model_path)
+            processor.save_pretrained(output_model_path)
+
+            mlflow.pytorch.log_model(model, "model")
+            model_version = run.info.run_id
+            mlflow.set_tag("model_version", model_version)
+
+            return (model_version, output_model_path)
+
+    except Exception as e:
+        logger.error(f"Fine-tuning failed: {str(e)}")
+        raise
+
+
 @dsl.pipeline(
     name='LayoutLM Fine-tuning Pipeline',
     description='Robust Fine-tune LayoutLM for document structure extraction'
