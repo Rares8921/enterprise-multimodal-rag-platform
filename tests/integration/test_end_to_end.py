@@ -1,10 +1,22 @@
 import pytest
 import httpx
+from pathlib import Path
+
 import time
 import asyncio
 
 @pytest.mark.asyncio
 class TestEndToEnd:
+
+    @pytest.fixture
+    async def client(self):
+        async with httpx.AsyncClient(base_url="http://localhost:8000", timeout=120.0) as client:
+            yield client
+
+    @pytest.fixture
+    def sample_pdf(self):
+        return Path("tests/data/sample_contract.pdf")
+
     async def test_document_upload_and_query(self, client, sample_pdf):
         tenant_id = "test-tenant-001"
 
@@ -107,6 +119,43 @@ class TestEndToEnd:
 
         # Cached should be significantly faster
         assert latency2 < latency1 * 0.5, "Cache not working effectively"
+
+    async def test_document_deletion_gdpr(self, client, sample_pdf):
+        tenant_id = "test-tenant-gdpr"
+
+        # Upload
+        with open(sample_pdf, 'rb') as f:
+            upload_response = await client.post(
+                "/documents/upload",
+                data={'tenant_id': tenant_id, 'doc_type': 'legal_contract'},
+                files={'file': f}
+            )
+
+        doc_id = upload_response.json()['doc_id']
+
+        # Wait for indexing
+        await asyncio.sleep(30)
+
+        # Delete
+        delete_response = await client.delete(
+            f"/documents/{doc_id}",
+            headers={'X-Tenant-Id': tenant_id}
+        )
+
+        assert delete_response.status_code == 200
+
+        # Verify document no longer queryable
+        query_response = await client.post(
+            "/query",
+            json={
+                'query': 'test',
+                'tenant_id': tenant_id,
+                'doc_id': doc_id
+            }
+        )
+
+        # Should return no results
+        assert query_response.json().get('citations', []) == []
 
 
 @pytest.mark.asyncio
