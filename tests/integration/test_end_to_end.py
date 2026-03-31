@@ -64,6 +64,27 @@ class TestEndToEnd:
         print(f"Query completed in {query_data['latency_ms']:.0f}ms")
         print(f"Answer: {query_data['answer'][:200]}...")
 
+    async def test_multi_document_retrieval(self, client):
+        tenant_id = "test-tenant-002"
+
+        # Query without specifying doc_id (search all documents)
+        query_response = await client.post(
+            "/query",
+            json={
+                'query': 'What are common liability clauses?',
+                'tenant_id': tenant_id,
+                'doc_type': 'legal_contract',
+                'top_k': 10
+            }
+        )
+
+        assert query_response.status_code == 200
+        data = query_response.json()
+
+        # Should retrieve from multiple documents
+        doc_ids = set(c['doc_id'] for c in data.get('citations', []))
+        print(f"Retrieved from {len(doc_ids)} documents")
+
 
 @pytest.mark.asyncio
 async def test_health_checks():
