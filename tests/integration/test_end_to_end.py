@@ -85,6 +85,29 @@ class TestEndToEnd:
         doc_ids = set(c['doc_id'] for c in data.get('citations', []))
         print(f"Retrieved from {len(doc_ids)} documents")
 
+    async def test_cache_performance(self, client):
+        tenant_id = "test-tenant-003"
+        query = "What is the termination clause?"
+
+        # First query (cold)
+        response1 = await client.post(
+            "/query",
+            json={'query': query, 'tenant_id': tenant_id}
+        )
+        latency1 = response1.json()['latency_ms']
+
+        # Second query (should be cached)
+        response2 = await client.post(
+            "/query",
+            json={'query': query, 'tenant_id': tenant_id}
+        )
+        latency2 = response2.json()['latency_ms']
+
+        print(f"Cold: {latency1:.0f}ms, Cached: {latency2:.0f}ms")
+
+        # Cached should be significantly faster
+        assert latency2 < latency1 * 0.5, "Cache not working effectively"
+
 
 @pytest.mark.asyncio
 async def test_health_checks():
