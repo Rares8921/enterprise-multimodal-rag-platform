@@ -1,0 +1,26 @@
+groups:
+  - name: service_health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.job }} (target: {{ $labels.instance }})."
+
+  - name: inference_api
+    rules:
+      - alert: HighQueryErrorRate
+        expr: |
+          (sum(rate(query_failures_total[5m])) by (tenant_id))
+          /
+          clamp_min(sum(rate(query_requests_total[5m])) by (tenant_id), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High query failure rate"
+          description: "Tenant {{ $labels.tenant_id }} has >5% query failures (5m window)."
