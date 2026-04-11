@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Doc Intelligence MVP</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, Arial; margin: 24px; max-width: 980px; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    label { display: block; font-size: 12px; color: #333; margin-bottom: 4px; }
+    input, select, textarea { padding: 8px; min-width: 280px; }
+    textarea { width: 100%; min-height: 120px; }
+    button { padding: 10px 14px; cursor: pointer; }
+    .card { border: 1px solid #ddd; padding: 16px; border-radius: 10px; margin: 12px 0; }
+    pre { background: #0b1020; color: #e6e6e6; padding: 12px; overflow: auto; border-radius: 10px; }
+    .small { color: #555; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>MVP</h1>
+  <p class="small">Flow: create dev API key -> upload -> poll status -> query.</p>
+
+  <div class="card">
+    <h2>1) Config + Auth</h2>
+    <div class="row">
+      <div>
+        <label>API Base URL</label>
+        <input id="apiBase" value="http://localhost:8000" />
+      </div>
+      <div>
+        <label>Tenant ID</label>
+        <input id="tenantId" value="test-tenant-001" />
+      </div>
+      <div>
+        <label>API Key</label>
+        <input id="apiKey" placeholder="(click Create Dev Key)" />
+      </div>
+    </div>
+    <div style="margin-top: 12px;">
+      <button id="btnCreateKey">Create Dev Key</button>
+      <button id="btnSaveKey">Save Key</button>
+      <span id="authStatus" class="small"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2) Upload</h2>
+    <div class="row">
+      <div>
+        <label>Doc type</label>
+        <select id="docType">
+          <option value="legal_contract">legal_contract</option>
+          <option value="financial_report">financial_report</option>
+        </select>
+      </div>
+      <div>
+        <label>File</label>
+        <input id="file" type="file" />
+      </div>
+    </div>
+    <div style="margin-top: 12px;">
+      <button id="btnUpload">Upload</button>
+      <span id="uploadStatus" class="small"></span>
+    </div>
+    <div style="margin-top: 12px;">
+      <label>doc_id</label>
+      <input id="docId" placeholder="(filled after upload)" />
+      <button id="btnPoll">Poll Status</button>
+      <span id="pollStatus" class="small"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3) Query</h2>
+    <label>Query</label>
+    <textarea id="query">What are the key terms of this contract?</textarea>
+    <div style="margin-top: 12px;">
+      <button id="btnQuery">Run Query</button>
+      <span id="queryStatus" class="small"></span>
+    </div>
+    <h3>Response</h3>
+    <pre id="out">(empty)</pre>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function getBase() { return $("apiBase").value.replace(/\/$/, ""); }
+  function tenant() { return $("tenantId").value.trim(); }
+  function apiKey() { return $("apiKey").value.trim(); }
+  function headers() {
+    const k = apiKey();
+    return k ? { "X-API-Key": k } : {};
+  }
+
+  function setStatus(el, msg) { el.textContent = msg; }
+
+  async function jsonFetch(path, options = {}) {
+    const res = await fetch(getBase() + path, options);
+    const text = await res.text();
+    let body;
+    try { body = JSON.parse(text); } catch { body = text; }
+    if (!res.ok) throw new Error(`${res.status}: ${typeof body === "string" ? body : JSON.stringify(body)}`);
+    return body;
+  }
+
+  function loadSaved() {
+    const saved = localStorage.getItem("docintel_api_key");
+    if (saved) $("apiKey").value = saved;
+  }
+  loadSaved();
+
+  $("btnCreateKey").onclick = async () => {
+    setStatus($("authStatus"), "creating...");
+    try {
+      const body = await jsonFetch("/auth/dev/api-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenant() })
+      });
+      $("apiKey").value = body.api_key;
+      setStatus($("authStatus"), "created");
+    } catch (e) {
+      setStatus($("authStatus"), e.message);
+    }
+  };
+
+  $("btnSaveKey").onclick = () => {
+    localStorage.setItem("docintel_api_key", apiKey());
+    setStatus($("authStatus"), "saved");
+  };
+
+  $("btnUpload").onclick = async () => {
+    setStatus($("uploadStatus"), "uploading...");
+    try {
+      const f = $("file").files[0];
+      if (!f) throw new Error("Choose a file");
+      const form = new FormData();
+      form.append("tenant_id", tenant());
+      form.append("doc_type", $("docType").value);
+      form.append("file", f);
+
+      const body = await jsonFetch("/documents/upload", {
+        method: "POST",
+        headers: headers(),
+        body: form,
+      });
+
+      $("docId").value = body.doc_id;
+      setStatus($("uploadStatus"), `uploaded: ${body.doc_id} (${body.status})`);
+    } catch (e) {
+      setStatus($("uploadStatus"), e.message);
+    }
+  };
+
+  $("btnPoll").onclick = async () => {
+    setStatus($("pollStatus"), "polling...");
+    try {
+      const docId = $("docId").value.trim();
+      if (!docId) throw new Error("Missing doc_id");
+      const body = await jsonFetch(`/documents/${docId}/status`, { headers: headers() });
+      setStatus($("pollStatus"), `status: ${body.status}`);
+    } catch (e) {
+      setStatus($("pollStatus"), e.message);
+    }
+  };
+
+  $("btnQuery").onclick = async () => {
+    setStatus($("queryStatus"), "querying...");
+    $("out").textContent = "...";
+    try {
+      const docId = $("docId").value.trim() || null;
+      const payload = {
+        query: $("query").value,
+        tenant_id: tenant(),
+        doc_type: $("docType").value,
+        doc_id: docId,
+        top_k: 5,
+      };
+      const body = await jsonFetch("/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers() },
+        body: JSON.stringify(payload),
+      });
+      $("out").textContent = JSON.stringify(body, null, 2);
+      setStatus($("queryStatus"), `ok (${Math.round(body.latency_ms)}ms)`);
+    } catch (e) {
+      $("out").textContent = e.message;
+      setStatus($("queryStatus"), e.message);
+    }
+  };
+</script>
+</body>
+</html>
