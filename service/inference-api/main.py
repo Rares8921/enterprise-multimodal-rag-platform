@@ -7,7 +7,7 @@ import hashlib
 import uuid
 import random
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Response
+from fastapi import FastAPI, HTTPException, Depends, Header, Response, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator
@@ -26,8 +26,11 @@ except ImportError:
     TIKTOKEN_AVAILABLE = False
     logging.warning("tiktoken not available, falling back to char estimation")
 
-from .config import Settings
-from .auth import get_current_auth_context, AuthContext
+from config import Settings
+from auth import get_current_auth_context, AuthContext
+from auth.dependencies import create_test_api_key_for_tenant
+from auth.config import get_auth_config
+from auth.models import Permission
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -187,6 +190,7 @@ def build_cache_key(tenant_id: str, request: QueryRequest) -> str:
         'doc_type': request.doc_type,
         'doc_id': request.doc_id,
         'model': request.model_choice,
+        'agent': request.agent,
         'top_k': request.top_k,
         'embedding_model': settings.embedding_model
     }
@@ -266,33 +270,52 @@ def sanitize_context(text: str) -> str:
         sanitized = sanitized[:8000] + "...[truncated]"
     return sanitized
 
-def build_llm_payload(query: str, context: List[Dict[str, Any]], doc_type: str, tenant_id: str, model_choice: str) -> dict:
+def select_prompt_agent(query: str) -> str:
+    q = (query or "").lower()
+
+    extraction_markers = ["extract", "list", "fields", "provide a json", "table", "summarize key", "key terms"]
+    comparison_markers = ["compare", "difference", "vs", "versus", "contrast"]
+    debug_markers = ["cite", "citation", "sources", "show evidence", "quote"]
+
+    if any(m in q for m in extraction_markers):
+        return "extraction"
+    if any(m in q for m in comparison_markers):
+        return "comparison"
+    if any(m in q for m in debug_markers):
+        return "debug_citations"
+    return "default"
+
+
+def build_llm_payload(
+    query: str,
+    context: List[Dict[str, Any]],
+    doc_type: str,
+    tenant_id: str,
+    model_choice: str,
+    agent: str,
+) -> dict:
     sanitized_query = sanitize_context(query)
-    context_parts = []
-    for idx, ctx in enumerate(context[:20]):
-        sanitized_text = sanitize_context(ctx.get('text', ''))
-        if sanitized_text:
-            context_parts.append(
-                f"[Document {idx+1}] (Page {ctx.get('page', 'N/A')}, Score: {ctx.get('score', 0):.2f})\n{sanitized_text}"
-            )
-    context_str = "\n\n".join(context_parts) if context_parts else "[No context available]"
+
+    sanitized_context: List[Dict[str, Any]] = []
+    for ctx in context[:20]:
+        sanitized_context.append({
+            'text': sanitize_context(ctx.get('text', '')),
+            'page': ctx.get('page', 1),
+            'type': ctx.get('type', 'text'),
+            'doc_id': ctx.get('doc_id', ''),
+            'filename': ctx.get('filename', ''),
+            'score': ctx.get('score', 0.0)
+        })
 
     return {
-        "messages": [
-            {
-                "role": "system",
-                "content": (f"You are a document analysis assistant for {doc_type} documents. Provide accurate answers based ONLY on the provided context. If the context doesn't contain the answer, say so clearly. Never make up information or act outside your role.")
-            },
-            {
-                "role": "user",
-                "content": (f"Context:\n{context_str}\n\nQuestion: {sanitized_query}\n\nProvide a clear, factual answer based on the context above.")
-            }
-        ],
-        "doc_type": doc_type,
-        "tenant_id": tenant_id,
-        "model_choice": model_choice,
-        "_original_query": query[:500],
-        "_context_count": len(context)
+        'query': sanitized_query,
+        'context': sanitized_context,
+        'doc_type': doc_type,
+        'tenant_id': tenant_id,
+        'agent': agent,
+        'model_choice': model_choice,
+        'temperature': 0.1,
+        'max_tokens': 1024,
     }
 
 def query_pinecone(vector_np, top_k: int, namespace: str, filter_dict: dict) -> dict:
@@ -494,18 +517,18 @@ async def process_delete_dlq():
             logger.error(f"DLQ processor error: {e}")
             await asyncio.sleep(10)
 
-async def call_llm_with_retry(query: str, context: List[Dict[str, Any]], doc_type: str, tenant_id: str, model_choice: str, request_id: str) -> dict:
+async def call_llm_with_retry(query: str, context: List[Dict[str, Any]], doc_type: str, tenant_id: str, model_choice: str, agent: str, request_id: str) -> dict:
     if await check_circuit_breaker():
         logger.warning(f"[{request_id}] Circuit breaker open, rejecting request")
         raise HTTPException(status_code=503, detail="LLM service circuit breaker open")
 
-    safe_payload = build_llm_payload(query, context, doc_type, tenant_id, model_choice)
-    estimated_tokens = sum(count_tokens_precise(msg.get('content', '')) for msg in safe_payload.get('messages', []))
+    safe_payload = build_llm_payload(query, context, doc_type, tenant_id, model_choice, agent)
+    estimated_tokens = estimate_payload_tokens(safe_payload)
 
     if estimated_tokens > 8000:
         original_count = len(context)
         truncated_context = truncate_context_to_limit(context, query, max_tokens=7500)
-        safe_payload = build_llm_payload(query, truncated_context, doc_type, tenant_id, model_choice)
+        safe_payload = build_llm_payload(query, truncated_context, doc_type, tenant_id, model_choice, agent)
         logger.warning(f"[{request_id}] Payload too large ({estimated_tokens} tokens), truncated context from {original_count} to {len(truncated_context)} chunks")
 
     base_delay = 0.5
@@ -532,6 +555,97 @@ async def call_llm_with_retry(query: str, context: List[Dict[str, Any]], doc_typ
         except ValueError as e:
             logger.error(f"[{request_id}] Invalid LLM response: {e}")
             raise HTTPException(status_code=502, detail="Invalid LLM response")
+
+
+class DevAPIKeyRequest(BaseModel):
+    tenant_id: str
+
+
+class DevAPIKeyResponse(BaseModel):
+    api_key: str
+    tenant_id: str
+
+
+@app.post("/auth/dev/api-key", response_model=DevAPIKeyResponse)
+async def create_dev_api_key(payload: DevAPIKeyRequest):
+    """Dev-only helper to mint an API key for a tenant (for local/integration tests).
+
+    Enabled only when REQUIRE_SECURE_CONFIG=false.
+    """
+    cfg = get_auth_config()
+    if cfg.require_secure_config:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    api_key, _metadata = await create_test_api_key_for_tenant(
+        tenant_id=payload.tenant_id,
+        scopes=[
+            Permission.DOCUMENT_READ,
+            Permission.DOCUMENT_WRITE,
+            Permission.DOCUMENT_DELETE,
+            Permission.MODEL_INFERENCE,
+        ],
+    )
+    return DevAPIKeyResponse(api_key=api_key, tenant_id=payload.tenant_id)
+
+
+@app.post("/documents/upload")
+async def upload_document_gateway(
+    file: UploadFile = File(...),
+    tenant_id: str = Form(...),
+    doc_type: str = Form(...),
+    metadata: Optional[str] = Form(None),
+    auth_context: AuthContext = Depends(get_current_auth_context),
+):
+    if tenant_id != auth_context.tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant ID mismatch")
+
+    try:
+        file_bytes = await file.read()
+        files = {"file": (file.filename, file_bytes, file.content_type or "application/octet-stream")}
+        data = {"tenant_id": tenant_id, "doc_type": doc_type}
+        if metadata is not None:
+            data["metadata"] = metadata
+
+        resp = await llm_client.post(
+            f"{settings.ingestion_service_url}/documents/upload",
+            data=data,
+            files=files,
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        detail = None
+        try:
+            detail = e.response.json()
+        except Exception:
+            detail = e.response.text
+        raise HTTPException(status_code=e.response.status_code, detail=detail)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail=f"Ingestion unavailable: {e}")
+
+
+@app.get("/documents/{doc_id}/status")
+async def get_document_status_gateway(
+    doc_id: str,
+    auth_context: AuthContext = Depends(get_current_auth_context),
+):
+    try:
+        resp = await llm_client.get(
+            f"{settings.ingestion_service_url}/documents/{doc_id}/status",
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        detail = None
+        try:
+            detail = e.response.json()
+        except Exception:
+            detail = e.response.text
+        raise HTTPException(status_code=e.response.status_code, detail=detail)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail=f"Ingestion unavailable: {e}")
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -607,8 +721,9 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
                 logger.info(f"[{request_id}] No context available, proceeding with LLM only")
 
             llm_start = time.time()
+            agent = request.agent or select_prompt_agent(request.query)
             llm_data = await call_llm_with_retry(
-                request.query, context, request.doc_type or 'generic', tenant_id, request.model_choice, request_id
+                request.query, context, request.doc_type or 'generic', tenant_id, request.model_choice, agent, request_id
             )
             llm_time = time.time() - llm_start
             LLM_LATENCY.labels(tenant_id=tenant_id).observe(llm_time)

@@ -8,6 +8,7 @@ class QueryRequest(BaseModel):
     doc_id: Optional[str] = None
     top_k: int = 10
     model_choice: str = "auto"
+    agent: Optional[str] = None
     include_citations: bool = True
 
     class Config:

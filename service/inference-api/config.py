@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     llm_timeout: int = 30
     llm_retry_attempts: int = 3
 
+    ingestion_service_url: str = "http://ingestion:8001"
+
     rate_limit_per_minute: int = 60
 
     max_top_k: int = 50
@@ -33,7 +35,7 @@ class Settings(BaseSettings):
     circuit_breaker_threshold: int = 5
     circuit_breaker_timeout: int = 30
 
-    allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+    allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8000", "http://localhost:8080"]
 
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str

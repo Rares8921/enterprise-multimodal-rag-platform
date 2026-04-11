@@ -2,6 +2,11 @@ import os
 from typing import Optional, Literal
 from pydantic import BaseModel, Field, field_validator
 
+
+def _require_secure_config() -> bool:
+    return os.getenv("REQUIRE_SECURE_CONFIG", "true").lower() == "true"
+
+
 class AuthConfig(BaseModel):
     # JWT Configuration
     jwt_secret_key: str = Field(
@@ -66,9 +71,9 @@ class AuthConfig(BaseModel):
     @field_validator("jwt_secret_key", "api_key_pepper")
     @classmethod
     def validate_secrets(cls, v: str, info) -> str:
-        #Ensure secrets are not default/weak values in production
-        field_name = info.field_name
-        if cls.model_fields.get("require_secure_config", True):
+        # Ensure secrets are not default/weak values in production
+        if _require_secure_config():
+            field_name = info.field_name
             if not v or len(v) < 32:
                 raise ValueError(
                     f"{field_name} must be at least 32 characters in production. "

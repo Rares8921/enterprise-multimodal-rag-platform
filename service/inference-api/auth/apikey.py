@@ -22,12 +22,16 @@ def generate_api_key_with_id(key_id: str) -> str:
     return f"{prefix}_{key_id}_{signature}"
 
 def parse_api_key(api_key: str) -> Optional[Tuple[str, str]]:
-    parts = api_key.split("_")
-    if len(parts) >= 4 and parts[0] == "mlops" and parts[1] == "v1":
-        key_id = parts[2]
-        signature = "_".join(parts[3:])
-        return key_id, signature
-    return None
+    prefix = "mlops_v1_"
+    if not api_key.startswith(prefix):
+        return None
+
+    rest = api_key[len(prefix):]
+    key_id, sep, signature = rest.partition("_")
+    if not sep or not key_id or not signature:
+        return None
+
+    return key_id, signature
 
 def hash_api_key(api_key: str, salt: str, pepper: str) -> str:
     combined = f"{pepper}{api_key}{salt}".encode('utf-8')
@@ -47,13 +51,14 @@ async def create_api_key(
     config = get_auth_config()
     store = get_api_key_store()
 
-    raw_key = generate_api_key()
+    key_id = f"key{secrets.token_hex(8)}"
+    raw_key = generate_api_key_with_id(key_id)
     salt = secrets.token_hex(16)
     key_hash = hash_api_key(raw_key, salt, config.api_key_pepper)
 
     now = datetime.now(timezone.utc)
     metadata = APIKeyMetadata(
-        key_id=f"key_{secrets.token_hex(8)}",
+        key_id=key_id,
         key_hash=key_hash,
         salt=salt,
         tenant_id=tenant_id,
