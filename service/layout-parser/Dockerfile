@@ -14,4 +14,6 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY services/ ./services/
 
-CMD ["python3", "-m", "services.layout_parser.main"]
+WORKDIR /app/services/layout-parser
+
+CMD ["python3", "main.py"]

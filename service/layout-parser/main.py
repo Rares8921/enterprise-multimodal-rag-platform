@@ -1,16 +1,27 @@
 import asyncio
+import logging
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
+import sys
+
 import redis.asyncio as aioredis
 from minio import Minio
-import time, json, os
 import mlflow
-from config import Settings
 from PIL import Image
-import tempfile
-from ..ingestion.queue import TaskQueue
-
-import logging
-from LayoutParser import LayoutParser
 from pdf2image import pdfinfo_from_path, convert_from_path
+
+# Ensure local imports work when running as a script in Docker
+HERE = Path(__file__).resolve().parent
+SERVICES_DIR = HERE.parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(SERVICES_DIR))
+
+from config import Settings
+from LayoutParser import LayoutParser
+from service.ingestion.queue import TaskQueue
 
 # Settings
 settings = Settings()
@@ -27,10 +38,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Metrics
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Histogram, start_http_server
 
 LAYOUTS_PARSED = Counter('layouts_parsed_total', 'Total layouts parsed', ['doc_type'])
 LAYOUT_DURATION = Histogram('layout_parsing_seconds', 'Layout parsing duration')
+
+# Expose Prometheus metrics for this worker process
+start_http_server(int(os.getenv("METRICS_PORT", "9103")))
 
 
 async def process_layout(layout_parser: LayoutParser, task_data: dict):
@@ -186,7 +200,7 @@ async def startup():
 
     logger.info("Layout parser service started")
 
-    asyncio.create_task(process_layouts_worker(layout_parser))
+    await process_layouts_worker(layout_parser)
 
 if __name__ == "__main__":
     asyncio.run(startup())
