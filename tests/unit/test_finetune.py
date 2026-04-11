@@ -3,47 +3,11 @@ from pathlib import Path
 from typing import Dict, Any
 from unittest.mock import MagicMock
 
-
-def build_training_args(
-    smoke_test: bool,
-    epochs: int,
-    batch_size: int,
-    learning_rate: float,
-    eval_dataset: Any,
-    cuda_available: bool = False
-) -> Dict[str, Any]:
-    return {
-        "num_train_epochs": 1 if smoke_test else epochs,
-        "per_device_train_batch_size": batch_size,
-        "gradient_accumulation_steps": 1 if smoke_test else 2,
-        "learning_rate": learning_rate,
-        "logging_strategy": "epoch",
-        "save_strategy": "epoch",
-        "evaluation_strategy": "epoch" if eval_dataset else "no",
-        "load_best_model_at_end": True if eval_dataset else False,
-        "metric_for_best_model": "f1" if eval_dataset else None,
-        "save_total_limit": 3,
-        "report_to": ["mlflow"],
-        "fp16": cuda_available,
-        "max_steps": 5 if smoke_test else -1
-    }
-
-
-def validate_hyperparameters(params: Dict[str, Any]) -> bool:
-    """Validate hyperparameters returning True if valid."""
-    if params.get("epochs", 0) <= 0:
-        return False
-    if params.get("batch_size", 0) <= 0:
-        return False
-    if not (0 < params.get("learning_rate", 0) < 1):
-        return False
-    if params.get("num_labels", 0) <= 0:
-        return False
-    return True
-
-
-def should_resume_from_checkpoint(checkpoint_dir: Path) -> bool:
-    return checkpoint_dir.exists() and len(list(checkpoint_dir.iterdir())) > 0
+from kubeflow.layoutlm_logic import (
+    build_training_args,
+    validate_hyperparameters,
+    should_resume_from_checkpoint,
+)
 
 
 @pytest.mark.unit

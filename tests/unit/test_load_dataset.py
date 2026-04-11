@@ -3,6 +3,8 @@ import pytest
 from pathlib import Path
 from typing import Dict, Any
 
+from kubeflow.layoutlm_logic import validate_dataset_json_schema, subset_dataset_json_for_smoke_test
+
 
 @pytest.mark.unit
 class TestLoadDatasetSchemaValidation:
@@ -32,20 +34,11 @@ class TestLoadDatasetSchemaValidation:
         assert "labels" not in train_data
 
     def test_schema_validation_logic(self, sample_dataset_dict: Dict[str, Any]):
-        """Test the schema validation logic that mirrors pipeline component."""
-        required_keys = ["image", "words", "boxes", "labels"]
-
-        # Simulate the validation from load_dataset component
-        train_data = sample_dataset_dict["train"]
-        sample_size = min(100, len(train_data["image"]))
-
-        for i in range(sample_size):
-            sample = {key: train_data[key][i] for key in train_data.keys()}
-            for key in required_keys:
-                assert key in sample, f"Missing required key '{key}' at index {i}"
+        """Test the shared schema validation logic used by the pipeline."""
+        assert validate_dataset_json_schema(sample_dataset_dict) == "split"
 
     def test_invalid_schema_raises_error(self):
-        """Test that invalid schema is properly detected."""
+        """Test that invalid schema is properly detected by shared logic."""
         invalid_data = {
             "train": {
                 "image": ["img1"],
@@ -54,45 +47,27 @@ class TestLoadDatasetSchemaValidation:
             }
         }
 
-        required_keys = ["image", "words", "boxes", "labels"]
-        train_data = invalid_data["train"]
-
         with pytest.raises(KeyError):
-            sample = {key: train_data[key][0] for key in required_keys}
+            validate_dataset_json_schema(invalid_data)
 
 
 @pytest.mark.unit
 class TestLoadDatasetSmokeTestMode:
     def test_smoke_test_subsets_to_10_samples(self, sample_dataset_dict: Dict[str, Any]):
         """Verify smoke_test limits dataset to 10 samples per split."""
-        smoke_test = True
-        max_samples = 10
+        subsetted = subset_dataset_json_for_smoke_test(sample_dataset_dict, max_samples=10)
 
-        if smoke_test:
-            subsetted = {
-                split: {
-                    key: values[:max_samples]
-                    for key, values in split_data.items()
-                }
-                for split, split_data in sample_dataset_dict.items()
-            }
-
-            for split_name, split_data in subsetted.items():
-                for key, values in split_data.items():
-                    assert len(values) <= max_samples, \
-                        f"Split '{split_name}' key '{key}' exceeds {max_samples} samples"
+        for split_name, split_data in subsetted.items():
+            for key, values in split_data.items():
+                assert len(values) <= 10, f"Split '{split_name}' key '{key}' exceeds 10 samples"
 
     def test_smoke_test_preserves_data_integrity(self, sample_dataset_dict: Dict[str, Any]):
-        smoke_test = True
-        max_samples = 10
+        subsetted = subset_dataset_json_for_smoke_test(sample_dataset_dict, max_samples=10)
+        subsetted_train = subsetted["train"]
 
-        if smoke_test:
-            train = sample_dataset_dict["train"]
-            subsetted_train = {k: v[:max_samples] for k, v in train.items()}
-
-            # All keys should have same length
-            lengths = [len(v) for v in subsetted_train.values()]
-            assert len(set(lengths)) == 1, "Inconsistent lengths after subsetting"
+        # All keys should have same length
+        lengths = [len(v) for v in subsetted_train.values()]
+        assert len(set(lengths)) == 1, "Inconsistent lengths after subsetting"
 
     def test_full_mode_keeps_all_samples(self, sample_dataset_dict: Dict[str, Any]):
         smoke_test = False

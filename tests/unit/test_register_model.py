@@ -3,37 +3,14 @@ import pytest
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-
-def load_metrics_from_file(metrics_path: Path) -> Dict[str, Any]:
-    with open(metrics_path, "r") as f:
-        return json.load(f)
-
-
-def get_accuracy_from_metrics(metrics: Dict[str, Any]) -> float:
-    """Extract accuracy from metrics with default of 0.0."""
-    accuracy = metrics.get("accuracy", 0.0)
-    if accuracy is None:
-        return 0.0
-    try:
-        return float(accuracy)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def determine_registration_status(accuracy: float, min_accuracy: float) -> str:
-    return "registered" if accuracy >= min_accuracy else "rejected"
-
-
-def build_model_uri(model_version: str) -> str:
-    return f"runs:/{model_version}/model"
-
-
-def build_registered_model_name(experiment_name: str) -> str:
-    return f"{experiment_name}-layoutlm"
-
-
-def build_model_tags(accuracy: float, status: str) -> Dict[str, str]:
-    return {"accuracy": str(accuracy), "status": status}
+from kubeflow.layoutlm_logic import (
+    load_metrics_from_file,
+    get_accuracy_from_metrics,
+    determine_registration_status,
+    build_model_uri,
+    build_registered_model_name,
+    build_model_tags,
+)
 
 
 @pytest.mark.unit
