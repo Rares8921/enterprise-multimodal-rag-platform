@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# KFP runtime needs kfp installed (executor_main)
+RUN pip install --upgrade pip \
+    && pip install "kfp>=2.0.0,<3" \
+    && pip install "mlflow==2.10.0" "datasets" "transformers==4.37.0" "accelerate" "scikit-learn"
+
+COPY ml-pipeline/ ./ml-pipeline/
+
+ENV PYTHONPATH=/app/ml-pipeline
