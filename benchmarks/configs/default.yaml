@@ -13,6 +13,12 @@ tasks:
     evaluator_class: "QAEvaluator"
     model_path: "http://inference-api:8000/query"
     dataset_path: "benchmarks/data_samples/smoke_qa.json"
+
+  nli_eval:
+    module: "nli"
+    evaluator_class: "NLIEvaluator"
+    model_path: "http://inference-api:8000/nli"
+    dataset_path: "benchmarks/data_samples/smoke_nli.json"
     
   pinecone_retrieval_eval:
     module: "retrieval"

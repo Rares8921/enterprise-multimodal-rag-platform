@@ -1,0 +1,37 @@
+[
+  {
+    "id": "1",
+    "premise": "All employees must sign the NDA before starting work.",
+    "hypothesis": "New employees need to sign confidentiality agreements.",
+    "label": "entailment",
+    "mock_prediction": "entailment"
+  },
+  {
+    "id": "2",
+    "premise": "The contract expires on December 31, 2024.",
+    "hypothesis": "The contract has no expiration date.",
+    "label": "contradiction",
+    "mock_prediction": "contradiction"
+  },
+  {
+    "id": "3",
+    "premise": "Payment terms are net 30.",
+    "hypothesis": "The company uses cloud storage.",
+    "label": "neutral",
+    "mock_prediction": "neutral"
+  },
+  {
+    "id": "4",
+    "premise": "The service agreement covers 24/7 support.",
+    "hypothesis": "Support is available around the clock.",
+    "label": "entailment",
+    "mock_prediction": "entailment"
+  },
+  {
+    "id": "5",
+    "premise": "All disputes shall be resolved through arbitration.",
+    "hypothesis": "Legal matters will be handled in court.",
+    "label": "contradiction",
+    "mock_prediction": "contradiction"
+  }
+]
