@@ -127,6 +127,7 @@ services:
       MINIO_SECRET_KEY: minioadmin
       PINECONE_API_KEY: ${PINECONE_API_KEY}
       PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
+      ENABLE_WORKERS: "false"
     volumes:
       - ./services:/app/services
       - /tmp/uploads:/tmp/uploads
@@ -139,13 +140,20 @@ services:
   worker:
     build:
       context: .
-      dockerfile: services/worker/Dockerfile
+      dockerfile: services/worker.Dockerfile
     environment:
       REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      POSTGRES_URL: postgresql://admin:admin@postgres:5432/doc_intel
+      ENABLE_WORKERS: "true"
     volumes:
       - ./services:/app/services
     depends_on:
       - redis
+      - minio
+      - postgres
 
   ## GPU service - document understanding / embedding generation
   layout-parser:
@@ -158,7 +166,7 @@ services:
     volumes:
       - ./services:/app/services
       - ./models:/app/models
-    
+
     depends_on:
       - redis
       - mlflow
@@ -175,7 +183,7 @@ services:
     volumes:
       - ./services:/app/services
       - ./models:/app/models
-    
+
     depends_on:
       - redis
       - mlflow
@@ -221,8 +229,15 @@ services:
       PINECONE_API_KEY: ${PINECONE_API_KEY}
       PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      LLM_ORCHESTRATOR_URL: http://llm-orchestrator:8001
+      LLM_ORCHESTRATOR_URL: http://llm-orchestrator:8002
+      INGESTION_SERVICE_URL: http://ingestion:8001
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
+
+      # Dev auth defaults
+      REQUIRE_SECURE_CONFIG: "false"
+      JWT_ALGORITHM: HS256
+      JWT_SECRET_KEY: dev_secret_key_at_least_32_characters_long_12345678
+      API_KEY_PEPPER: dev_pepper_at_least_32_characters_long_12345678
     volumes:
       - ./services:/app/services
     depends_on:
@@ -230,6 +245,15 @@ services:
       - redis
       - llm-orchestrator
       - prometheus
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - inference-api
 
   monitoring:
     build:
