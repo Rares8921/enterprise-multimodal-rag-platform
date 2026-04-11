@@ -1,12 +1,16 @@
 import asyncio
-import redis.asyncio as aioredis
 import logging
-import asyncpg, json
-import aiohttp, time
-import datetime, math
+import asyncpg
+import aiohttp
+import datetime
+import json
+import math
 import random
+import time
+
 import numpy as np
 import mlflow
+import redis.asyncio as aioredis
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,7 +21,15 @@ DATA_DRIFT_SCORE = Gauge('data_drift_score', 'Data drift detection score', ['fea
 CONCEPT_DRIFT_DETECTED = Counter('concept_drift_detected_total', 'Concept drift detections', ['tenant_id'])
 MODEL_PERFORMANCE_SCORE = Gauge('model_user_feedback_score', 'Current user feedback score', ['tenant_id'])
 
-from ..config import Settings
+from pathlib import Path
+import sys
+
+# Make sure we can import services/monitoring/config.py when running as a script
+HERE = Path(__file__).resolve().parent
+MONITORING_DIR = HERE.parent
+sys.path.insert(0, str(MONITORING_DIR))
+
+from config import Settings
 settings = Settings()
 
 # Global state
@@ -45,7 +57,7 @@ async def trigger_drift_alert(alert_type: str, tenant_id: str, result: dict):
 
 async def get_sleep_time_until_next_run(interval_seconds: int) -> float:
     # exact sleep time to align executions
-    now = datetime.now().timestamp()
+    now = datetime.datetime.now().timestamp()
     next_run = math.ceil(now / interval_seconds) * interval_seconds
     return next_run - now
 

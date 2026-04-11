@@ -7,7 +7,7 @@ class DriftDetector:
         self.window_size = window_size
 
     async def detect_data_drift(self, feature_name: str, current_data: List[float], reference_data: List[float]) -> Dict[str, Any]:
-        # PSI as primary, K-S as auxiliary
+        # PSI (population stability index) as primary, K-S (Kolmogorov-Smirnov) as auxiliary
         if not current_data or not reference_data:
             return {'drift_detected': False, 'psi': 0.0, 'severity': 'none'}
 
