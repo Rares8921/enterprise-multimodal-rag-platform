@@ -7,6 +7,7 @@ class QueryRequest(BaseModel):
     context: List[Dict[str, Any]]
     doc_type: str
     tenant_id: str
+    agent: str = "default"
     model_choice: ModelChoice = ModelChoice.AUTO
     temperature: float = 0.1
     max_tokens: int = 1024

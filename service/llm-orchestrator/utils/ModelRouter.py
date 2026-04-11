@@ -1,8 +1,7 @@
-from ..complexity_analyzer import QueryComplexityAnalyzer
-from ..config import Settings
 from typing import Optional
 
-settings = Settings()
+from ..complexity_analyzer import QueryComplexityAnalyzer
+from ..config import Settings
 
 import logging
 logging.basicConfig(level=logging.INFO)

@@ -32,23 +32,35 @@ USER QUESTION:
 
 RESPONSE:"""
 
-    def get_prompt_template(self, doc_type: str) -> str:
-        if doc_type in self._cache:
-            return self._cache[doc_type]
+    def get_prompt_template(self, doc_type: str, agent: str | None = None) -> str:
+        agent_key = agent or "default"
+        cache_key = f"{doc_type}__{agent_key}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
-        file_path = self.prompts_dir / f"{doc_type}.json"
+        candidate_files: list[Path] = []
 
-        # Fallback to generic if specialized prompt doesn't exist
+        # 1) Most specific: doc_type + agent
+        if agent and agent != "default":
+            candidate_files.append(self.prompts_dir / f"{doc_type}__{agent}.json")
+            # 2) Generic agent prompt as fallback
+            candidate_files.append(self.prompts_dir / f"generic__{agent}.json")
+
+        # 3) doc_type default
+        candidate_files.append(self.prompts_dir / f"{doc_type}.json")
+        # 4) global generic
+        candidate_files.append(self.prompts_dir / "generic.json")
+
+        file_path = next((p for p in candidate_files if p.exists()), self.prompts_dir / "generic.json")
         if not file_path.exists():
-            logger.warning(f"Prompt '{doc_type}' not found. Falling back to generic.")
-            file_path = self.prompts_dir / "generic.json"
+            raise FileNotFoundError(f"No prompt templates found in {self.prompts_dir}")
 
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 prompt_data = json.load(f)
 
             template = self._build_template(prompt_data)
-            self._cache[doc_type] = template
+            self._cache[cache_key] = template
             return template
 
         except Exception as e:
