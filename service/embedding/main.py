@@ -1,15 +1,25 @@
 import asyncio
-import redis.asyncio as aioredis
 import logging
-import time, json
+import json
+import time
+import os
+from pathlib import Path
+import sys
+
+import redis.asyncio as aioredis
+
+# Ensure local imports work when running as a script in Docker
+HERE = Path(__file__).resolve().parent
+SERVICES_DIR = HERE.parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(SERVICES_DIR))
 
 from config import Settings
-from service.embedding.EmbeddingGenerator import EmbeddingGenerator
-from service.embedding.VectorStore import VectorStore
+from EmbeddingGenerator import EmbeddingGenerator
+from VectorStore import VectorStore
+from service.ingestion.queue import TaskQueue
 
 settings = Settings()
-
-from ..ingestion.queue import TaskQueue
 
 # Global state
 redis_client: aioredis.Redis = None
@@ -19,11 +29,14 @@ pinecone_client = None
 pinecone_index = None
 
 # Metrics
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Histogram, start_http_server
 EMBEDDINGS_GENERATED = Counter('embeddings_generated_total', 'Total embeddings generated', ['doc_type'])
 EMBEDDINGS_INDEXED = Counter('embeddings_indexed_total', 'Total embeddings indexed')
 EMBEDDING_DURATION = Histogram('embedding_generation_seconds', 'Embedding generation duration')
 INDEXING_DURATION = Histogram('vector_indexing_seconds', 'Vector indexing duration')
+
+# Expose Prometheus metrics for this worker process
+start_http_server(int(os.getenv("METRICS_PORT", "9102")))
 
 
 logging.basicConfig(level=logging.INFO)
@@ -183,8 +196,7 @@ async def startup():
 
     logger.info("Embedding service started")
 
-    # Start worker
-    asyncio.create_task(process_embeddings_worker(embedding_generator, vector_store))
+    await process_embeddings_worker(embedding_generator, vector_store)
 
 
 if __name__ == "__main__":
