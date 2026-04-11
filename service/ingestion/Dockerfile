@@ -25,6 +25,8 @@ COPY services/ ./services/
 RUN useradd -m appuser
 USER appuser
 
+WORKDIR /app/services/ingestion
+
 EXPOSE 8001
 
-CMD ["python", "-m", "services.ingestion.main"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

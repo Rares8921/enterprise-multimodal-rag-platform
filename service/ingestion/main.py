@@ -8,14 +8,14 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as aioredis
 from minio import Minio
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Histogram, make_asgi_app
 
-from .config import Settings
-from .db import get_db, engine
-from .models import Document, DocumentStatus, Base
-from .ocr_engine import OCREngine
-from .queue import TaskQueue
-from .worker import WorkerManager
+from config import Settings
+from db import get_db, engine
+from models import Document, DocumentStatus, Base
+from ocr_engine import OCREngine
+from queue import TaskQueue
+from worker import WorkerManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -25,6 +25,9 @@ INGESTION_DURATION = Histogram('ingestion_duration_seconds', 'Total ingestion du
 
 app = FastAPI(title="Document Ingestion Service", version="1.0.0")
 settings = Settings()
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 # Global state
 redis_client: Optional[aioredis.Redis] = None
@@ -64,11 +67,12 @@ async def startup():
 
     ocr_engine = OCREngine(settings)
 
-    # Initialize and start concurrent background workers
-    worker_manager = WorkerManager(task_queue, redis_client, minio_client, ocr_engine, settings)
-    await worker_manager.start()
-
-    logger.info("Ingestion service and workers started successfully")
+    if settings.enable_workers:
+        worker_manager = WorkerManager(task_queue, redis_client, minio_client, ocr_engine, settings)
+        await worker_manager.start()
+        logger.info("Ingestion service and workers started successfully")
+    else:
+        logger.info("Ingestion service started (workers disabled via ENABLE_WORKERS)")
 
 
 @app.on_event("shutdown")
