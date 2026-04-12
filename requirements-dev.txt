@@ -1,37 +1,37 @@
 # Testing
-pytest==7.4.4
-pytest-cov==4.1.0
-pytest-asyncio==0.23.3
-pytest-mock==3.12.0
-pytest-xdist==3.5.0
-faker==22.6.0
-locust==2.20.0
+pytest
+pytest-cov
+pytest-asyncio
+pytest-mock
+pytest-xdist
+faker
+locust
 
 # Code Quality
-black==24.1.1
-isort==5.13.2
-flake8==7.0.0
-mypy==1.8.0
-pylint==3.0.3
-bandit==1.7.6
+black
+isort
+flake8
+mypy
+pylint
+bandit
 
 # Documentation
-mkdocs==1.5.3
-mkdocs-material==9.5.6
-mkdocstrings[python]==0.24.0
+mkdocs
+mkdocs-material
+mkdocstrings[python]
 
 # Jupyter & Analysis
-jupyter==1.0.0
-notebook==7.0.7
-ipywidgets==8.1.1
-matplotlib==3.8.2
-seaborn==0.13.1
-plotly==5.18.0
+jupyter
+notebook
+ipywidgets
+matplotlib
+seaborn
+plotly
 
 # Performance Profiling
-py-spy==0.3.14
-memory-profiler==0.61.0
-line-profiler==4.1.1
+py-spy
+memory-profiler
+line-profiler
 
 # Pre-commit
-pre-commit==3.6.0
+pre-commit

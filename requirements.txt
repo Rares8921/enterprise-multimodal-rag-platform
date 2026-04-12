@@ -1,79 +1,51 @@
-# Core Dependencies
-python-dotenv
+# Core
 pydantic
 pydantic-settings
 
-# Web Framework
+# API / HTTP
 fastapi
 uvicorn[standard]
 httpx
 aiohttp
+python-multipart
 
-# ML/AI Core
+# Storage / DB
+sqlalchemy
+asyncpg
+redis
+minio
+pinecone
+
+# Auth
+PyJWT[crypto]
+
+# Observability
+prometheus-client
+python-json-logger
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx
+
+# ML / Training / Benchmarks
 torch
 torchvision
 transformers
 sentence-transformers
-accelerate
-
-# Document Processing
-pytesseract
-pdf2image
-PyPDF2
-python-docx
-pillow
-opencv-python
-
-# Layout Understanding
-layoutparser
-#detectron2 @ git+https://github.com/facebookresearch/detectron2.git
-
-# LLM & Embeddings
-langchain
-langchain-community
-openai
-google-generativeai
-cohere
-
-# Vector Store
-pinecone-client
-faiss-cpu
-
-# Database & Storage
-psycopg2-binary
-sqlalchemy
-alembic
-redis
-minio
-
-# MLOps
-mlflow
-ray[serve]
-kubeflow-pipelines
-dvc
-dvc-s3
-
-# Monitoring & Observability
-prometheus-client
-opentelemetry-api
-opentelemetry-sdk
-opentelemetry-instrumentation-fastapi
-sentry-sdk
-
-# Data Processing
-pandas
+datasets
+scikit-learn
 numpy
 scipy
 
-# Utilities
-python-multipart
-tenacity
-pyyaml
-click
-tqdm
-joblib
+# Document Processing
+pdf2image
+pillow
+easyocr
+opencv-python
 
-# Security
-python-jose[cryptography]
-passlib[bcrypt]
-cryptography
+# MLOps / Orchestration
+mlflow
+kfp
+pyyaml
+requests
