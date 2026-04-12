@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from typing import Dict, Any
 
-from kubeflow.layoutlm_logic import validate_dataset_json_schema, subset_dataset_json_for_smoke_test
+from ml_pipeline.kubeflow.layoutlm_logic import validate_dataset_json_schema, subset_dataset_json_for_smoke_test
 
 
 @pytest.mark.unit

@@ -5,7 +5,22 @@ from pathlib import Path
 from typing import Dict, Any, Generator
 from unittest.mock import MagicMock, patch
 
+import sys
+
 import pytest
+
+
+@pytest.fixture(scope="session")
+def anyio_backend():
+    """Force AnyIO to use asyncio so async integration tests run consistently."""
+    return "asyncio"
+
+
+# Allow unit tests to import Kubeflow business-logic modules under ml-pipeline/
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ML_PIPELINE_DIR = REPO_ROOT / "ml-pipeline"
+if ML_PIPELINE_DIR.exists() and str(ML_PIPELINE_DIR) not in sys.path:
+    sys.path.insert(0, str(ML_PIPELINE_DIR))
 
 
 @pytest.fixture

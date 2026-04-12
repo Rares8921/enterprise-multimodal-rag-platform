@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from kubeflow.layoutlm_logic import (
+from ml_pipeline.kubeflow.layoutlm_logic import (
     load_metrics_from_file,
     get_accuracy_from_metrics,
     determine_registration_status,

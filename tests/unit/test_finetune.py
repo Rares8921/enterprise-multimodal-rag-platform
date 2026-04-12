@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Any
 from unittest.mock import MagicMock
 
-from kubeflow.layoutlm_logic import (
+from ml_pipeline.kubeflow.layoutlm_logic import (
     build_training_args,
     validate_hyperparameters,
     should_resume_from_checkpoint,

@@ -7,7 +7,7 @@ import asyncio
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.anyio
 class TestEndToEnd:
 
     @pytest.fixture
@@ -182,7 +182,7 @@ class TestEndToEnd:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_health_checks():
 
     async with httpx.AsyncClient() as client:
