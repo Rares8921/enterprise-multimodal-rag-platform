@@ -24,12 +24,13 @@ MODEL_PERFORMANCE_SCORE = Gauge('model_user_feedback_score', 'Current user feedb
 from pathlib import Path
 import sys
 
-# Make sure we can import services/monitoring/config.py when running as a script
+# Make sure we can import services/monitoring/* packages when running as a script
 HERE = Path(__file__).resolve().parent
 MONITORING_DIR = HERE.parent
 sys.path.insert(0, str(MONITORING_DIR))
 
-from config import Settings
+from ..control_plane.config import Settings
+
 settings = Settings()
 
 # Global state
