@@ -16,6 +16,10 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY services/ ./services/
 
+RUN useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 WORKDIR /app/services/embedding
 
 CMD ["python", "main.py"]

@@ -16,7 +16,13 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY services/ ./services/
 
+RUN useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 WORKDIR /app/services/monitoring
+
+EXPOSE 9104
 
 # Monitoring API + background analytics (drift, SLO polling, etc.)
 CMD ["uvicorn", "control_plane.app:app", "--host", "0.0.0.0", "--port", "9104"]

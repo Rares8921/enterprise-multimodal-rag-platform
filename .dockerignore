@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.pyc
+
+# Virtualenvs
+.venv/
+venv/
+ENV/
+
+# Test/cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Secrets (keep .env.example)
+.env
+
+# Frontend
+**/node_modules/
+
+# Large local artifacts
+models/
+**/*.pt
+**/*.bin
+**/*.onnx
+
+# Logs
+*.log

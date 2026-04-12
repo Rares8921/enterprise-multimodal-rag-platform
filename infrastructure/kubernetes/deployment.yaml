@@ -18,6 +18,11 @@ spec:
       labels:
         app: inference-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
       - name: inference-api
         image: doc-intel/inference-api:latest
@@ -26,6 +31,11 @@ spec:
         env:
         - name: REDIS_URL
           value: "redis://redis:6379"
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: doc-intel-secrets
+              key: postgres-url
         - name: PINECONE_API_KEY
           valueFrom:
             secretKeyRef:
@@ -36,6 +46,10 @@ spec:
             secretKeyRef:
               name: doc-intel-secrets
               key: gemini-api-key
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         resources:
           requests:
             memory: "2Gi"
@@ -84,6 +98,11 @@ spec:
       labels:
         app: ingestion
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
       - name: ingestion
         image: doc-intel/ingestion:latest
@@ -95,10 +114,17 @@ spec:
             secretKeyRef:
               name: doc-intel-secrets
               key: postgres-url
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         resources:
           requests:
             memory: "1Gi"
             cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -115,12 +141,28 @@ spec:
       labels:
         app: layout-parser
     spec:
+      nodeSelector:
+        workload: gpu
+      tolerations:
+      - key: "gpu"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
       - name: layout-parser
         image: doc-intel/layout-parser:latest
         env:
         - name: REDIS_URL
           value: "redis://redis:6379"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         resources:
           requests:
             memory: "4Gi"
