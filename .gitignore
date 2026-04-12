@@ -3,3 +3,8 @@
 .coverage
 TODO
 **/__pycache__/**
+
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform/
