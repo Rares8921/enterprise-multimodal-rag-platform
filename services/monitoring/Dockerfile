@@ -16,6 +16,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY services/ ./services/
 
-WORKDIR /app/services/monitoring/drift-detection
+WORKDIR /app/services/monitoring
 
-CMD ["python", "main.py"]
+# Monitoring API + background analytics (drift, SLO polling, etc.)
+CMD ["uvicorn", "control_plane.app:app", "--host", "0.0.0.0", "--port", "9104"]
