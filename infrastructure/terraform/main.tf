@@ -1,3 +1,4 @@
+/*
 terraform {
   required_version = ">= 1.5"
   required_providers {
@@ -235,3 +236,4 @@ output "database_endpoints" {
   }
   sensitive = true
 }
+*/
