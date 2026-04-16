@@ -19,7 +19,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Histogram, make_asgi_app
 # Metrics
 LLM_REQUESTS = Counter('llm_requests_total', 'Total LLM requests', ['model', 'doc_type'])
 LLM_DURATION = Histogram('llm_inference_seconds', 'LLM inference duration', ['model'])
@@ -28,6 +28,9 @@ LLM_COST = Counter('llm_cost_dollars', 'Estimated LLM cost in dollars', ['model'
 
 from fastapi import FastAPI, HTTPException
 app = FastAPI(title="LLM Orchestrator", version="1.0.0")
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 from config import Settings
 settings = Settings()
@@ -125,14 +128,15 @@ async def health_ready():
     }
 
 
-def build_rag_prompt(query: str, context: List[Dict[str, Any]], doc_type: str) -> str:
-    template = prompt_manager.get_prompt_template(doc_type)
+def build_rag_prompt(query: str, context: List[Dict[str, Any]], doc_type: str, agent: str = "default") -> str:
+    template = prompt_manager.get_prompt_template(doc_type, agent=agent)
 
-    # Format context chunks
+    # Format context chunks (Top 10)
     context_parts = []
-    for i, ctx in enumerate(context[:10], 1):  # Top 10 chunks
+    for i, ctx in enumerate(context[:10], 1):
+        source = ctx.get('filename') or ctx.get('doc_id') or 'N/A'
         context_parts.append(
-            f"[{i}] (Page {ctx.get('page', 'N/A')}, {ctx.get('type', 'text')})\n{ctx.get('text', '')}"
+            f"[{i}] ({source}, Page {ctx.get('page', 'N/A')}, {ctx.get('type', 'text')})\n{ctx.get('text', '')}"
         )
 
     context_str = '\n\n'.join(context_parts)
@@ -212,10 +216,10 @@ async def generate_response(request: QueryRequest):
         )
 
         # Check cache with robust key
-        hash_input = f"{request.tenant_id}|{request.query}|{context_dump}|{request.doc_type}|{selected_model}|{request.temperature}|{request.max_tokens}".encode(
+        hash_input = f"{request.tenant_id}|{request.query}|{context_dump}|{request.doc_type}|{request.agent}|{selected_model}|{request.temperature}|{request.max_tokens}".encode(
             'utf-8')
         stable_hash = hashlib.sha256(hash_input).hexdigest()
-        cache_key = f"llm_cache:{request.tenant_id}:{request.doc_type}:{selected_model}:{stable_hash}"
+        cache_key = f"llm_cache:{request.tenant_id}:{request.doc_type}:{request.agent}:{selected_model}:{stable_hash}"
 
         cached_data = await redis_client.get(cache_key)
         if cached_data:
@@ -223,11 +227,14 @@ async def generate_response(request: QueryRequest):
             cached_response = json.loads(cached_data)
             return QueryResponse(**cached_response)
 
+        context_for_prompt = request.context[:10]
+
         # Build prompt
         prompt = build_rag_prompt(
             query=request.query,
-            context=request.context,
-            doc_type=request.doc_type
+            context=context_for_prompt,
+            doc_type=request.doc_type,
+            agent=request.agent
         )
 
         try:
@@ -250,10 +257,10 @@ async def generate_response(request: QueryRequest):
                 selected_model = 'mistral'
 
                 # Update cache key for fallback model
-                hash_input = f"{request.tenant_id}|{request.query}|{context_dump}|{request.doc_type}|{selected_model}|{request.temperature}|{request.max_tokens}".encode(
+                hash_input = f"{request.tenant_id}|{request.query}|{context_dump}|{request.doc_type}|{request.agent}|{selected_model}|{request.temperature}|{request.max_tokens}".encode(
                     'utf-8')
                 stable_hash = hashlib.sha256(hash_input).hexdigest()
-                cache_key = f"llm_cache:{request.tenant_id}:{request.doc_type}:{selected_model}:{stable_hash}"
+                cache_key = f"llm_cache:{request.tenant_id}:{request.doc_type}:{request.agent}:{selected_model}:{stable_hash}"
 
                 try:
                     with LLM_DURATION.labels(model=selected_model).time():
@@ -274,8 +281,8 @@ async def generate_response(request: QueryRequest):
         answer = result['text']
         usage = result['usage']
 
-        # Extract citations from answer
-        citations = extract_citations(answer, request.context)
+        # Extract citations from answer (align indices with prompt context)
+        citations = extract_citations(answer, context_for_prompt)
 
         confidence = calculate_confidence(answer, citations)
 

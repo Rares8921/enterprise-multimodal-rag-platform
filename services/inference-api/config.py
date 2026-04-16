@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     llm_retry_attempts: int = 3
 
     ingestion_service_url: str = "http://ingestion:8001"
+    documents_authority_url: str = ""
 
     rate_limit_per_minute: int = 60
 
@@ -38,8 +39,8 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8000", "http://localhost:8080"]
 
     minio_endpoint: str = "localhost:9000"
-    minio_access_key: str
-    minio_secret_key: str
+    minio_access_key: str = ""
+    minio_secret_key: str = ""
     minio_bucket: str = "documents"
     minio_secure: bool = False
 
