@@ -7,7 +7,7 @@ import hashlib
 import uuid
 import random
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Response, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Depends, Header, Response, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator
@@ -183,6 +183,20 @@ async def shutdown():
 
 def stable_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _documents_authority_base() -> str:
+    base = (getattr(settings, "documents_authority_url", "") or "").strip()
+    return base.rstrip("/")
+
+
+def _forward_auth_headers(x_api_key: Optional[str], authorization: Optional[str]) -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    if x_api_key:
+        headers["X-API-Key"] = x_api_key
+    if authorization:
+        headers["Authorization"] = authorization
+    return headers
 
 def build_cache_key(tenant_id: str, request: QueryRequest) -> str:
     cache_params = {
@@ -594,10 +608,15 @@ async def upload_document_gateway(
     tenant_id: str = Form(...),
     doc_type: str = Form(...),
     metadata: Optional[str] = Form(None),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
     auth_context: AuthContext = Depends(get_current_auth_context),
 ):
     if tenant_id != auth_context.tenant_id:
         raise HTTPException(status_code=403, detail="Tenant ID mismatch")
+
+    authority = _documents_authority_base()
+    target_base = authority if authority else settings.ingestion_service_url.rstrip("/")
 
     try:
         file_bytes = await file.read()
@@ -607,7 +626,8 @@ async def upload_document_gateway(
             data["metadata"] = metadata
 
         resp = await llm_client.post(
-            f"{settings.ingestion_service_url}/documents/upload",
+            f"{target_base}/documents/upload",
+            headers=_forward_auth_headers(x_api_key, authorization) if authority else None,
             data=data,
             files=files,
             timeout=120.0,
@@ -622,17 +642,23 @@ async def upload_document_gateway(
             detail = e.response.text
         raise HTTPException(status_code=e.response.status_code, detail=detail)
     except httpx.RequestError as e:
-        raise HTTPException(status_code=503, detail=f"Ingestion unavailable: {e}")
+        raise HTTPException(status_code=503, detail=f"Document authority unavailable: {e}")
 
 
 @app.get("/documents/{doc_id}/status")
 async def get_document_status_gateway(
     doc_id: str,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
     auth_context: AuthContext = Depends(get_current_auth_context),
 ):
+    authority = _documents_authority_base()
+    target_base = authority if authority else settings.ingestion_service_url.rstrip("/")
+
     try:
         resp = await llm_client.get(
-            f"{settings.ingestion_service_url}/documents/{doc_id}/status",
+            f"{target_base}/documents/{doc_id}/status",
+            headers=_forward_auth_headers(x_api_key, authorization) if authority else None,
             timeout=30.0,
         )
         resp.raise_for_status()
@@ -645,7 +671,7 @@ async def get_document_status_gateway(
             detail = e.response.text
         raise HTTPException(status_code=e.response.status_code, detail=detail)
     except httpx.RequestError as e:
-        raise HTTPException(status_code=503, detail=f"Ingestion unavailable: {e}")
+        raise HTTPException(status_code=503, detail=f"Document authority unavailable: {e}")
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -776,7 +802,31 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
         raise HTTPException(status_code=504, detail="Request timeout")
 
 @app.get("/documents")
-async def list_documents(auth_context: AuthContext = Depends(get_current_auth_context)):
+async def list_documents(
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    auth_context: AuthContext = Depends(get_current_auth_context),
+):
+    authority = _documents_authority_base()
+    if authority:
+        try:
+            resp = await llm_client.get(
+                f"{authority}/documents",
+                headers=_forward_auth_headers(x_api_key, authorization),
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            detail = None
+            try:
+                detail = e.response.json()
+            except Exception:
+                detail = e.response.text
+            raise HTTPException(status_code=e.response.status_code, detail=detail)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Document authority unavailable: {e}")
+
     tenant_id = auth_context.tenant_id
     try:
         doc_ids = await redis_client.smembers(f"tenant_docs:{tenant_id}")
@@ -797,7 +847,32 @@ async def list_documents(auth_context: AuthContext = Depends(get_current_auth_co
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str, auth_context: AuthContext = Depends(get_current_auth_context)):
+async def delete_document(
+    doc_id: str,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    auth_context: AuthContext = Depends(get_current_auth_context),
+):
+    authority = _documents_authority_base()
+    if authority:
+        try:
+            resp = await llm_client.delete(
+                f"{authority}/documents/{doc_id}",
+                headers=_forward_auth_headers(x_api_key, authorization),
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            detail = None
+            try:
+                detail = e.response.json()
+            except Exception:
+                detail = e.response.text
+            raise HTTPException(status_code=e.response.status_code, detail=detail)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Document authority unavailable: {e}")
+
     tenant_id = auth_context.tenant_id
     try:
         doc_data = await redis_client.hgetall(f"doc:{doc_id}")
