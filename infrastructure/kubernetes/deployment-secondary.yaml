@@ -20,14 +20,23 @@ spec:
       labels:
         app: inference-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
       - name: inference-api
         image: doc-intel/inference-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
         env:
         - name: REDIS_URL
-          value: "redis://redis:6379"
+          valueFrom:
+            secretKeyRef:
+              name: doc-intel-secrets
+              key: redis-url
         - name: POSTGRES_URL
           valueFrom:
             secretKeyRef:
@@ -45,9 +54,29 @@ spec:
               key: gemini-api-key
         - name: LLM_ORCHESTRATOR_URL
           value: "http://llm-orchestrator:8002"
+        - name: MINIO_ENDPOINT
+          value: "minio:9000"
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: doc-intel-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: doc-intel-secrets
+              key: minio-secret-key
+        - name: MINIO_BUCKET
+          value: "documents"
+        - name: MINIO_SECURE
+          value: "false"
         # TODO: set this to the PRIMARY cluster inference-api base URL (LoadBalancer hostname)
         - name: DOCUMENTS_AUTHORITY_URL
           value: "https://api-us-east-1.doc-intel.example.com"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         resources:
           requests:
             memory: "2Gi"
