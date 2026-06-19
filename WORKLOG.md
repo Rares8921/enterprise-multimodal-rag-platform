@@ -32,6 +32,9 @@
 - Added a fixed mixed workload covering simple factual, medium document QA, complex legal/financial, citation-heavy, long-context, adversarial/ambiguous, and cache-hit cases.
 - Added benchmark tests for workload coverage, strategy summaries, output schemas, and JSON/Markdown/CSV report writers.
 - Reduced router import coupling so benchmark code can use the router without loading service environment settings.
+- Generated checked-in mock benchmark evidence under `benchmarks/results` for commit `f0d1fd0`.
+- Added LLM routing benchmark documentation, system architecture documentation, and a portfolio-style case study with explicit limitations.
+- Documented that BM25/hybrid retrieval is not implemented yet and must not be claimed as supported.
 
 ## Files Changed
 
@@ -45,6 +48,11 @@
 - `services/llm-orchestrator/utils/__init__.py`
 - `benchmarks/llm_routing_benchmark.py`
 - `benchmarks/data_samples/llm_routing_workload.json`
+- `benchmarks/results/llm_routing_benchmark_mock_latest.json`
+- `benchmarks/results/llm_routing_benchmark_mock_latest.md`
+- `docs/llm-routing-benchmark.md`
+- `docs/architecture.md`
+- `docs/case-study.md`
 - `tests/benchmark/test_llm_routing_benchmark.py`
 - `tests/unit/test_llm_routing.py`
 
@@ -57,9 +65,12 @@
 - `pytest tests\unit\test_llm_routing.py -q` - 11 passed.
 - `pytest tests\benchmark\test_llm_routing_benchmark.py -q` - 3 passed.
 - `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id smoke` - wrote JSON, Markdown, and CSV reports to a temporary directory.
+- `python benchmarks\llm_routing_benchmark.py --output-dir benchmarks\results --run-id mock_latest` - wrote checked-in JSON/Markdown benchmark evidence and an ignored CSV.
+- `python -c "import json; data=json.load(open('benchmarks/results/llm_routing_benchmark_mock_latest.json')); print(data['git_commit']); [print(k, v['summary']['estimated_total_cost_usd'], v['summary']['latency_ms'], v['summary']['cache_hit_rate'], v['summary']['fallback_count'], v['summary']['quality_proxy']) for k,v in data['strategies'].items()]"`
 
 ## Remaining Risks and Limitations
 
 - The benchmark methodology and documentation are not yet added.
 - The unit tests use mocked providers and cache; they do not prove external provider availability or answer quality.
 - The benchmark is explicitly mock/synthetic; it estimates latency and cost and must not be described as production performance or real model quality.
+- Documentation is not a substitute for real provider benchmarks, real retrieval evaluation, or production deployment evidence.
