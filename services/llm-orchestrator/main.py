@@ -1,7 +1,6 @@
 from typing import Optional
 import httpx
 import redis.asyncio as aioredis
-import mlflow
 import time
 from typing import Dict, List, Any
 import re
@@ -67,8 +66,14 @@ async def startup():
     mistral_client = httpx.AsyncClient()
     mistral_model = MistralLLM(settings.mistral_api_url, mistral_client)
 
-    # MLflow
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    # MLflow is only needed at service startup, so import it lazily to keep
+    # lightweight unit tests from paying the import cost.
+    try:
+        import mlflow
+
+        mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    except Exception as e:
+        logger.warning(f"MLflow tracking setup skipped: {str(e)}")
 
     logger.info("LLM Orchestrator started")
 
@@ -194,6 +199,40 @@ def extract_citations(answer: str, context: List[Dict[str, Any]]) -> List[Dict[s
     return citations
 
 
+def _safe_token_count(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def normalize_generation_result(result: Dict[str, Any]) -> tuple[str, Dict[str, int]]:
+    if not isinstance(result, dict):
+        raise ValueError("Model response must be a dictionary")
+
+    answer = result.get('text')
+    if not isinstance(answer, str) or not answer.strip():
+        raise ValueError("Model response missing non-empty text")
+
+    raw_usage = result.get('usage')
+    if raw_usage is None:
+        raw_usage = {}
+    if not isinstance(raw_usage, dict):
+        raise ValueError("Model response usage must be a dictionary")
+
+    input_tokens = _safe_token_count(raw_usage.get('input_tokens'))
+    output_tokens = _safe_token_count(raw_usage.get('output_tokens'))
+    total_tokens = _safe_token_count(raw_usage.get('total_tokens'))
+    if total_tokens == 0:
+        total_tokens = input_tokens + output_tokens
+
+    return answer, {
+        'input_tokens': input_tokens,
+        'output_tokens': output_tokens,
+        'total_tokens': total_tokens
+    }
+
+
 @app.post("/generate", response_model=QueryResponse)
 async def generate_response(request: QueryRequest):
     if not all([redis_client, model_router, gemini_model, mistral_model]):
@@ -278,8 +317,11 @@ async def generate_response(request: QueryRequest):
 
         logger.info(f"Successfully generated response using model: {selected_model}")
 
-        answer = result['text']
-        usage = result['usage']
+        try:
+            answer, usage = normalize_generation_result(result)
+        except ValueError as e:
+            logger.error(f"Malformed model response from {selected_model}: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"Malformed model response: {str(e)}")
 
         # Extract citations from answer (align indices with prompt context)
         citations = extract_citations(answer, context_for_prompt)
@@ -309,7 +351,7 @@ async def generate_response(request: QueryRequest):
         # Store in cache
         await redis_client.setex(
             cache_key,
-            3600, # 1 hour TTL
+            settings.cache_ttl,
             response_obj.model_dump_json() if hasattr(response_obj, 'model_dump_json') else response_obj.json()
         )
 

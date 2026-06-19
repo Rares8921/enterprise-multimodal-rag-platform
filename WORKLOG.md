@@ -24,15 +24,22 @@
 - Added an inspectable `RoutingDecision` while keeping `select_model()` compatible with the existing generation endpoint.
 - Fixed orchestrator utility imports so the service package can be imported from the service root.
 - Made orchestrator settings compatible with Pydantic v2 and shared multi-service `.env` files.
+- Added deterministic unit tests for LLM routing, prompt template selection, fallback, response caching, token/cost accounting, citation extraction, confidence scoring, empty/long queries, and malformed provider responses.
+- Fixed model wrapper package exports so the orchestrator can import wrappers from the service root.
+- Added model response normalization so malformed provider payloads return a clear 502 instead of an incidental key error.
+- Made MLflow setup lazy during orchestrator startup to keep unit imports lightweight.
 
 ## Files Changed
 
 - `WORKLOG.md`
 - `services/llm-orchestrator/complexity_analyzer.py`
 - `services/llm-orchestrator/config.py`
+- `services/llm-orchestrator/main.py`
+- `services/llm-orchestrator/model_wrapper/__init__.py`
 - `services/llm-orchestrator/utils/ModelRouter.py`
 - `services/llm-orchestrator/utils/QueryRequest.py`
 - `services/llm-orchestrator/utils/__init__.py`
+- `tests/unit/test_llm_routing.py`
 
 ## Tests and Checks Run
 
@@ -40,8 +47,9 @@
 - `rg --files`
 - Read relevant LLM orchestrator and inference API files.
 - `python -c "import sys; sys.path.insert(0, 'services/llm-orchestrator'); from complexity_analyzer import QueryComplexityAnalyzer, ComplexityResult; from utils import ModelRouter; from config import Settings; s=Settings(gemini_api_key='test'); r=ModelRouter(s, QueryComplexityAnalyzer()); d=r.route('What is the contract date?', 100, 'legal_contract'); print(type(r.complexity_analyzer.analyze('x','generic')).__name__, d.model, d.reason, d.complexity.score)"`
+- `pytest tests\unit\test_llm_routing.py -q` - 11 passed.
 
 ## Remaining Risks and Limitations
 
-- Routing behavior still needs deterministic tests before public claims can be made.
-- Generation fallback, caching, provider response validation, and confidence behavior still need direct unit coverage.
+- The benchmark methodology and documentation are not yet added.
+- The unit tests use mocked providers and cache; they do not prove external provider availability or answer quality.
