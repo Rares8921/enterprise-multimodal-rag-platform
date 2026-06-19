@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    redis_url = "redis://localhost:6379"
+    redis_url: str = "redis://localhost:6379"
 
     gemini_api_key: str
     mistral_api_url: str = "http://mistral:8000"
@@ -15,3 +15,4 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"

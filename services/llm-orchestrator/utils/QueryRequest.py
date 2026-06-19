@@ -1,6 +1,10 @@
 from typing import Dict, List, Any
 from pydantic import BaseModel
-from ModelChoice import ModelChoice
+
+try:
+    from .ModelChoice import ModelChoice
+except ImportError:  # pragma: no cover - supports direct script-style imports
+    from ModelChoice import ModelChoice
 
 class QueryRequest(BaseModel):
     query: str

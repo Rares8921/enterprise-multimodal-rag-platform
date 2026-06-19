@@ -1,5 +1,16 @@
 import re
-from typing import Dict, Any, List
+from dataclasses import asdict, dataclass, field
+from typing import List
+
+
+@dataclass(frozen=True)
+class ComplexityResult:
+    score: float
+    level: str
+    signals: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 class QueryComplexityAnalyzer:
@@ -47,7 +58,7 @@ class QueryComplexityAnalyzer:
             'liquidity', 'solvency', 'consolidated', 'hedging'
         ]
 
-    def analyze(self, query: str, doc_type: str) -> Dict[str, Any]:
+    def analyze(self, query: str, doc_type: str) -> ComplexityResult:
         """
         Analyze query complexity
 
@@ -56,14 +67,10 @@ class QueryComplexityAnalyzer:
             doc_type: Document type
 
         Returns:
-            Dictionary containing complexity score, level, and detected signals
+            Typed complexity result with score, level, and detected signals.
         """
         if not query or not query.strip():
-            return {
-                "score": 0.0,
-                "level": "low",
-                "signals": ["empty_query"]
-            }
+            return ComplexityResult(score=0.0, level="low", signals=["empty_query"])
 
         query_lower = query.lower().strip()
         score = 0.3
@@ -132,8 +139,4 @@ class QueryComplexityAnalyzer:
         else:
             level = "high"
 
-        return {
-            "score": round(final_score, 2),
-            "level": level,
-            "signals": signals
-        }
+        return ComplexityResult(score=round(final_score, 2), level=level, signals=signals)

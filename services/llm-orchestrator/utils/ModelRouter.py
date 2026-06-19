@@ -1,11 +1,21 @@
+from dataclasses import dataclass
 from typing import Optional
 
-from ..complexity_analyzer import QueryComplexityAnalyzer
-from ..config import Settings
+from complexity_analyzer import ComplexityResult, QueryComplexityAnalyzer
+from config import Settings
 
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RoutingDecision:
+    model: str
+    reason: str
+    complexity: ComplexityResult
+    context_length: int
+
 
 class ModelRouter:
     def __init__(self, settings: Settings, complexity_analyzer: QueryComplexityAnalyzer):
@@ -32,7 +42,7 @@ class ModelRouter:
             }
         }
 
-    def select_model(self, query: str, context_length: int, doc_type: str, force_model: Optional[str] = None) -> str:
+    def route(self, query: str, context_length: int, doc_type: str, force_model: Optional[str] = None) -> RoutingDecision:
         """
         Args:
             query: User query
@@ -41,23 +51,34 @@ class ModelRouter:
             force_model: Force specific model (for testing/comparison)
 
         Returns:
-            Model name to use
+            Routing decision with selected model, reason, and complexity analysis
         """
         if force_model and force_model != "auto":
-            return force_model
+            if force_model not in self.costs:
+                raise ValueError(f"Unsupported forced model: {force_model}")
+            complexity = self.complexity_analyzer.analyze(query, doc_type)
+            return RoutingDecision(
+                model=force_model,
+                reason="forced",
+                complexity=complexity,
+                context_length=max(0, int(context_length)),
+            )
 
         # Analyze query complexity
-        complexity_score = self.complexity_analyzer.analyze(query, doc_type)
+        complexity = self.complexity_analyzer.analyze(query, doc_type)
+        safe_context_length = max(0, int(context_length))
+        threshold = getattr(self.settings, "complexity_threshold", 0.7)
+        query_lower = (query or "").lower()
 
-        if context_length > self.capabilities['mistral']['max_context']:
+        if safe_context_length > self.capabilities['mistral']['max_context']:
             # Context too large for Mistral
             decision = 'gemini'
             reason = 'context_size'
-        elif complexity_score > 0.7:
+        elif complexity.score >= threshold:
             # High complexity needs stronger reasoning
             decision = 'gemini'
             reason = 'high_complexity'
-        elif 'compare' in query.lower() or 'analyze' in query.lower() or 'explain' in query.lower():
+        elif 'compare' in query_lower or 'analyze' in query_lower or 'explain' in query_lower:
             # Analytical queries benefit from Gemini
             decision = 'gemini'
             reason = 'analytical_query'
@@ -66,13 +87,32 @@ class ModelRouter:
             decision = 'mistral'
             reason = 'cost_efficient'
 
-        logger.info(f"Model routing: {decision} (reason: {reason}, complexity: {complexity_score:.2f})")
+        logger.info(
+            "Model routing: %s (reason: %s, complexity: %.2f, level: %s)",
+            decision,
+            reason,
+            complexity.score,
+            complexity.level,
+        )
 
-        return decision
+        return RoutingDecision(
+            model=decision,
+            reason=reason,
+            complexity=complexity,
+            context_length=safe_context_length,
+        )
+
+    def select_model(self, query: str, context_length: int, doc_type: str, force_model: Optional[str] = None) -> str:
+        return self.route(query, context_length, doc_type, force_model).model
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        #Estimate cost for a request
+        # Estimate cost for a request
+        if model not in self.costs:
+            raise ValueError(f"Unsupported model for cost estimation: {model}")
+
         cost_per_million = self.costs[model]
-        cost = (input_tokens * cost_per_million['input'] +
-                output_tokens * cost_per_million['output']) / 1_000_000
+        safe_input_tokens = max(0, int(input_tokens))
+        safe_output_tokens = max(0, int(output_tokens))
+        cost = (safe_input_tokens * cost_per_million['input'] +
+                safe_output_tokens * cost_per_million['output']) / 1_000_000
         return cost
