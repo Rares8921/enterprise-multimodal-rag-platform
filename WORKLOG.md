@@ -35,10 +35,12 @@
 - Generated checked-in mock benchmark evidence under `benchmarks/results` for commit `f0d1fd0`.
 - Added LLM routing benchmark documentation, system architecture documentation, and a portfolio-style case study with explicit limitations.
 - Documented that BM25/hybrid retrieval is not implemented yet and must not be claimed as supported.
+- Added a reviewer-oriented README with quickstart, architecture summary, required services, environment variables, test commands, benchmark commands, supported claims, unsupported claims, and known limitations.
 
 ## Files Changed
 
 - `WORKLOG.md`
+- `README.md`
 - `services/llm-orchestrator/complexity_analyzer.py`
 - `services/llm-orchestrator/config.py`
 - `services/llm-orchestrator/main.py`
@@ -70,7 +72,7 @@
 
 ## Remaining Risks and Limitations
 
-- The benchmark methodology and documentation are not yet added.
 - The unit tests use mocked providers and cache; they do not prove external provider availability or answer quality.
 - The benchmark is explicitly mock/synthetic; it estimates latency and cost and must not be described as production performance or real model quality.
 - Documentation is not a substitute for real provider benchmarks, real retrieval evaluation, or production deployment evidence.
+- README references `.env.example`, which still needs to be added in the hygiene phase.
