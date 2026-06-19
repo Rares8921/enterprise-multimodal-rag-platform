@@ -41,6 +41,7 @@
 - Added a lightweight GitHub Actions smoke workflow that runs deterministic tests and the mock benchmark without real API keys.
 - Updated `.gitignore` for local LLM routing benchmark artifacts while preserving the existing `TODO.txt` ignore.
 - Added the missing `google-generativeai` runtime dependency used by the Gemini wrapper.
+- Added `PROJECT_EVIDENCE.md` mapping supported CV claims to code, tests, benchmark evidence, validation commands, and limitations.
 
 ## Files Changed
 
@@ -50,6 +51,7 @@
 - `.github/workflows/test-and-benchmark-smoke.yml`
 - `.gitignore`
 - `Makefile`
+- `PROJECT_EVIDENCE.md`
 - `requirements.txt`
 - `services/llm-orchestrator/complexity_analyzer.py`
 - `services/llm-orchestrator/config.py`
@@ -88,3 +90,4 @@
 - The benchmark is explicitly mock/synthetic; it estimates latency and cost and must not be described as production performance or real model quality.
 - Documentation is not a substitute for real provider benchmarks, real retrieval evaluation, or production deployment evidence.
 - CI is a smoke workflow only; it does not run the full Docker Compose stack or integration tests.
+- `PROJECT_EVIDENCE.md` marks hybrid BM25 retrieval, real provider performance, production usage, and compliance/security claims as unsupported.
