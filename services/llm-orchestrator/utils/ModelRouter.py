@@ -1,8 +1,10 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from complexity_analyzer import ComplexityResult, QueryComplexityAnalyzer
-from config import Settings
+
+if TYPE_CHECKING:
+    from config import Settings
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +20,7 @@ class RoutingDecision:
 
 
 class ModelRouter:
-    def __init__(self, settings: Settings, complexity_analyzer: QueryComplexityAnalyzer):
+    def __init__(self, settings: "Settings", complexity_analyzer: QueryComplexityAnalyzer):
         self.settings = settings
         self.complexity_analyzer = complexity_analyzer
 

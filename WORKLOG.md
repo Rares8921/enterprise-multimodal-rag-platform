@@ -28,6 +28,10 @@
 - Fixed model wrapper package exports so the orchestrator can import wrappers from the service root.
 - Added model response normalization so malformed provider payloads return a clear 502 instead of an incidental key error.
 - Made MLflow setup lazy during orchestrator startup to keep unit imports lightweight.
+- Added a reproducible mock/synthetic LLM routing benchmark comparing always-expensive, always-cheap, and heuristic routing strategies.
+- Added a fixed mixed workload covering simple factual, medium document QA, complex legal/financial, citation-heavy, long-context, adversarial/ambiguous, and cache-hit cases.
+- Added benchmark tests for workload coverage, strategy summaries, output schemas, and JSON/Markdown/CSV report writers.
+- Reduced router import coupling so benchmark code can use the router without loading service environment settings.
 
 ## Files Changed
 
@@ -39,6 +43,9 @@
 - `services/llm-orchestrator/utils/ModelRouter.py`
 - `services/llm-orchestrator/utils/QueryRequest.py`
 - `services/llm-orchestrator/utils/__init__.py`
+- `benchmarks/llm_routing_benchmark.py`
+- `benchmarks/data_samples/llm_routing_workload.json`
+- `tests/benchmark/test_llm_routing_benchmark.py`
 - `tests/unit/test_llm_routing.py`
 
 ## Tests and Checks Run
@@ -48,8 +55,11 @@
 - Read relevant LLM orchestrator and inference API files.
 - `python -c "import sys; sys.path.insert(0, 'services/llm-orchestrator'); from complexity_analyzer import QueryComplexityAnalyzer, ComplexityResult; from utils import ModelRouter; from config import Settings; s=Settings(gemini_api_key='test'); r=ModelRouter(s, QueryComplexityAnalyzer()); d=r.route('What is the contract date?', 100, 'legal_contract'); print(type(r.complexity_analyzer.analyze('x','generic')).__name__, d.model, d.reason, d.complexity.score)"`
 - `pytest tests\unit\test_llm_routing.py -q` - 11 passed.
+- `pytest tests\benchmark\test_llm_routing_benchmark.py -q` - 3 passed.
+- `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id smoke` - wrote JSON, Markdown, and CSV reports to a temporary directory.
 
 ## Remaining Risks and Limitations
 
 - The benchmark methodology and documentation are not yet added.
 - The unit tests use mocked providers and cache; they do not prove external provider availability or answer quality.
+- The benchmark is explicitly mock/synthetic; it estimates latency and cost and must not be described as production performance or real model quality.
