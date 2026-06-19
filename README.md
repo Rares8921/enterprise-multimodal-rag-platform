@@ -97,7 +97,7 @@ JWT_SECRET_KEY
 API_KEY_PEPPER
 ```
 
-Use `.env.example` once added for local defaults. Do not commit `.env` files or real secrets.
+Use `.env.example` for local defaults. Do not commit `.env` files or real secrets.
 
 ## Running Tests
 
@@ -119,6 +119,14 @@ Full test suite:
 pytest
 ```
 
+Make targets are also available:
+
+```powershell
+make test
+make test-llm-routing
+make test-benchmark
+```
+
 Some integration tests may require external services or heavier ML dependencies. Prefer focused tests when validating LLM routing changes.
 
 ## Running Benchmarks
@@ -127,6 +135,12 @@ Mock LLM routing benchmark:
 
 ```powershell
 python benchmarks\llm_routing_benchmark.py --output-dir benchmarks\results --run-id mock_latest
+```
+
+Make target:
+
+```powershell
+make benchmark-llm-routing
 ```
 
 The benchmark compares:
@@ -185,3 +199,7 @@ The current checked-in benchmark is mock/synthetic. It supports reproducibility 
 - Some Docker Compose images use `latest`, which weakens environment reproducibility.
 - Full local stack execution requires external services and credentials.
 - Real provider benchmark mode is not implemented yet.
+
+## CI
+
+`.github/workflows/test-and-benchmark-smoke.yml` runs the deterministic routing tests, benchmark tests, and mock benchmark without real API keys or external services.

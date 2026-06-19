@@ -36,11 +36,21 @@
 - Added LLM routing benchmark documentation, system architecture documentation, and a portfolio-style case study with explicit limitations.
 - Documented that BM25/hybrid retrieval is not implemented yet and must not be claimed as supported.
 - Added a reviewer-oriented README with quickstart, architecture summary, required services, environment variables, test commands, benchmark commands, supported claims, unsupported claims, and known limitations.
+- Added Makefile targets for focused routing tests, benchmark tests, and the mock LLM routing benchmark.
+- Added `.env.example` with placeholder-only local development variables.
+- Added a lightweight GitHub Actions smoke workflow that runs deterministic tests and the mock benchmark without real API keys.
+- Updated `.gitignore` for local LLM routing benchmark artifacts while preserving the existing `TODO.txt` ignore.
+- Added the missing `google-generativeai` runtime dependency used by the Gemini wrapper.
 
 ## Files Changed
 
 - `WORKLOG.md`
 - `README.md`
+- `.env.example`
+- `.github/workflows/test-and-benchmark-smoke.yml`
+- `.gitignore`
+- `Makefile`
+- `requirements.txt`
 - `services/llm-orchestrator/complexity_analyzer.py`
 - `services/llm-orchestrator/config.py`
 - `services/llm-orchestrator/main.py`
@@ -69,10 +79,12 @@
 - `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id smoke` - wrote JSON, Markdown, and CSV reports to a temporary directory.
 - `python benchmarks\llm_routing_benchmark.py --output-dir benchmarks\results --run-id mock_latest` - wrote checked-in JSON/Markdown benchmark evidence and an ignored CSV.
 - `python -c "import json; data=json.load(open('benchmarks/results/llm_routing_benchmark_mock_latest.json')); print(data['git_commit']); [print(k, v['summary']['estimated_total_cost_usd'], v['summary']['latency_ms'], v['summary']['cache_hit_rate'], v['summary']['fallback_count'], v['summary']['quality_proxy']) for k,v in data['strategies'].items()]"`
+- `python -m pytest tests\unit\test_llm_routing.py tests\benchmark\test_llm_routing_benchmark.py -q` - 14 passed.
+- `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id hygiene` - wrote JSON, Markdown, and CSV reports to a temporary directory.
 
 ## Remaining Risks and Limitations
 
 - The unit tests use mocked providers and cache; they do not prove external provider availability or answer quality.
 - The benchmark is explicitly mock/synthetic; it estimates latency and cost and must not be described as production performance or real model quality.
 - Documentation is not a substitute for real provider benchmarks, real retrieval evaluation, or production deployment evidence.
-- README references `.env.example`, which still needs to be added in the hygiene phase.
+- CI is a smoke workflow only; it does not run the full Docker Compose stack or integration tests.
