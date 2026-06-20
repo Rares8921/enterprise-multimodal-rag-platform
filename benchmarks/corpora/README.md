@@ -33,10 +33,10 @@ Raw files acquired from these sources still belong under ignored local storage s
 Use `example_manifest.json` as the starting point. The manifest records:
 
 - corpus identity and mode: `public`, `synthetic`, or `private_local`
-- document IDs, filenames, document types, source notes, page counts, and commit permission flags
+- document IDs, filenames, document types, source notes, optional source metadata, source format, page counts, and commit permission flags
 - labeled queries with target document IDs, optional relevant pages/chunks, expected answer hints, and citation requirements
 
-The manifest can describe private/local PDFs without committing those PDFs. For private corpora, set:
+The manifest can describe private/local PDFs or public HTML/PDF source files without committing those raw files. For private corpora, set:
 
 ```json
 "mode": "private_local"

@@ -1,11 +1,17 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 
 VALID_CORPUS_MODES = {"public", "synthetic", "private_local"}
 VALID_DOCUMENT_TYPES = {"legal_contract", "financial_report", "other"}
+VALID_SOURCE_FORMATS = {"pdf", "html", "rendered_pdf"}
+SOURCE_FORMAT_SUFFIXES = {
+    "pdf": {".pdf"},
+    "rendered_pdf": {".pdf"},
+    "html": {".html", ".htm", ".txt", ".xml"},
+}
 
 
 class ManifestValidationError(ValueError):
@@ -21,6 +27,8 @@ class CorpusDocument:
     source_note: str
     page_count: int | None
     allowed_to_commit: bool
+    source_format: str = "pdf"
+    source_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -42,6 +50,7 @@ class CorpusManifest:
     mode: str
     documents: list[CorpusDocument]
     queries: list[CorpusQuery]
+    source_metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def document_ids(self) -> set[str]:
@@ -55,7 +64,9 @@ class CorpusManifest:
             "document_count": len(self.documents),
             "query_count": len(self.queries),
             "doc_types": sorted({document.doc_type for document in self.documents}),
+            "source_formats": sorted({document.source_format for document in self.documents}),
             "query_categories": sorted({query.category for query in self.queries}),
+            "source_metadata": self.source_metadata,
         }
 
 
@@ -72,12 +83,14 @@ class LoadedCorpus:
             **self.manifest.summary(),
             "manifest_path": str(self.manifest_path),
             "pdf_root": str(self.pdf_root),
+            "file_root": str(self.pdf_root),
             "warnings": self.warnings,
             "documents": [
                 {
                     "document_id": document.document_id,
                     "filename": document.filename,
                     "doc_type": document.doc_type,
+                    "source_format": document.source_format,
                     "exists": self.document_paths[document.document_id].exists(),
                     "allowed_to_commit": document.allowed_to_commit,
                 }
@@ -85,8 +98,9 @@ class LoadedCorpus:
             ],
         }
 
+
 def read_manifest_json(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8-sig") as f:
         return json.load(f)
 
 
@@ -100,6 +114,7 @@ def validate_manifest_payload(payload: dict[str, Any]) -> CorpusManifest:
     if mode not in VALID_CORPUS_MODES:
         raise ManifestValidationError(f"manifest.mode must be one of {sorted(VALID_CORPUS_MODES)}")
 
+    source_metadata = _optional_object(payload.get("source_metadata", {}), "manifest.source_metadata")
     raw_documents = payload["documents"]
     raw_queries = payload["queries"]
     if not isinstance(raw_documents, list) or not raw_documents:
@@ -125,6 +140,7 @@ def validate_manifest_payload(payload: dict[str, Any]) -> CorpusManifest:
         mode=mode,
         documents=documents,
         queries=queries,
+        source_metadata=source_metadata,
     )
 
 
@@ -144,7 +160,7 @@ def load_corpus_manifest(
 
     warnings = _privacy_warnings(manifest)
     document_paths = {
-        document.document_id: _resolve_pdf_path(document, resolved_pdf_root)
+        document.document_id: _resolve_corpus_file_path(document, resolved_pdf_root)
         for document in manifest.documents
     }
 
@@ -172,14 +188,16 @@ def format_corpus_summary(loaded: LoadedCorpus) -> str:
         f"Corpus: {summary['corpus_name']} ({summary['corpus_id']})",
         f"Mode: {summary['mode']}",
         f"Manifest: {summary['manifest_path']}",
-        f"PDF root: {summary['pdf_root']}",
+        f"File root: {summary['file_root']}",
         f"Documents: {summary['document_count']}",
         f"Queries: {summary['query_count']}",
+        f"Source formats: {', '.join(summary['source_formats']) if summary['source_formats'] else 'none'}",
     ]
     if loaded.warnings:
         lines.append("Warnings:")
         lines.extend(f"- {warning}" for warning in loaded.warnings)
     return "\n".join(lines)
+
 
 def _parse_document(raw: dict[str, Any], index: int) -> CorpusDocument:
     context = f"documents[{index}]"
@@ -201,6 +219,9 @@ def _parse_document(raw: dict[str, Any], index: int) -> CorpusDocument:
     if doc_type not in VALID_DOCUMENT_TYPES:
         raise ManifestValidationError(f"{context}.doc_type must be one of {sorted(VALID_DOCUMENT_TYPES)}")
 
+    source_metadata = _optional_object(raw.get("source_metadata", {}), f"{context}.source_metadata")
+    source_format = _source_format(raw, source_metadata, filename, context)
+
     page_count = raw.get("page_count")
     if page_count is not None and (not isinstance(page_count, int) or page_count <= 0):
         raise ManifestValidationError(f"{context}.page_count must be a positive integer when provided")
@@ -217,6 +238,8 @@ def _parse_document(raw: dict[str, Any], index: int) -> CorpusDocument:
         source_note=_required_string(raw, "source_note", context),
         page_count=page_count,
         allowed_to_commit=allowed_to_commit,
+        source_format=source_format,
+        source_metadata=source_metadata,
     )
 
 
@@ -280,18 +303,48 @@ def _int_list(value: Any, context: str) -> list[int]:
     return value
 
 
+def _optional_object(value: Any, context: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ManifestValidationError(f"{context} must be an object when provided")
+    return value
+
+
+def _source_format(raw: dict[str, Any], source_metadata: dict[str, Any], filename: str, context: str) -> str:
+    value = raw.get("source_format") or source_metadata.get("source_format") or _infer_source_format(filename)
+    if not isinstance(value, str) or not value.strip():
+        raise ManifestValidationError(f"{context}.source_format must be a non-empty string when provided")
+    source_format = value.strip().lower()
+    if source_format not in VALID_SOURCE_FORMATS:
+        raise ManifestValidationError(f"{context}.source_format must be one of {sorted(VALID_SOURCE_FORMATS)}")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in SOURCE_FORMAT_SUFFIXES[source_format]:
+        raise ManifestValidationError(
+            f"{context}.filename suffix {suffix!r} is not valid for source_format {source_format!r}"
+        )
+    return source_format
+
+
+def _infer_source_format(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix in SOURCE_FORMAT_SUFFIXES["html"]:
+        return "html"
+    raise ManifestValidationError("filename must use a supported source format suffix: .pdf, .html, .htm, .txt, or .xml")
+
+
 def _validate_relative_filename(filename: str, context: str) -> None:
     path = Path(filename)
     if path.is_absolute() or ".." in path.parts:
-        raise ManifestValidationError(f"{context}.filename must be a relative path inside the local PDF directory")
+        raise ManifestValidationError(f"{context}.filename must be a relative path inside the local corpus file directory")
 
 
-def _resolve_pdf_path(document: CorpusDocument, pdf_root: Path) -> Path:
-    if Path(document.filename).suffix.lower() != ".pdf":
-        raise ManifestValidationError(f"{document.document_id}.filename must point to a PDF file")
+def _resolve_corpus_file_path(document: CorpusDocument, pdf_root: Path) -> Path:
     path = (pdf_root / document.filename).resolve()
     if pdf_root not in path.parents and path != pdf_root:
-        raise ManifestValidationError(f"{document.document_id}.filename resolves outside the configured PDF root")
+        raise ManifestValidationError(f"{document.document_id}.filename resolves outside the configured corpus file root")
     return path
 
 
@@ -307,7 +360,10 @@ def _privacy_warnings(manifest: CorpusManifest) -> list[str]:
             )
     elif any(not document.allowed_to_commit for document in manifest.documents):
         warnings.append("At least one document is marked allowed_to_commit=false; do not copy it into tracked paths.")
+    if any(document.source_format == "html" for document in manifest.documents):
+        warnings.append("At least one document is HTML; PDF ingestion may require local rendering/conversion before ingest mode.")
     return warnings
+
 
 def _duplicates(values: list[str]) -> list[str]:
     seen: set[str] = set()

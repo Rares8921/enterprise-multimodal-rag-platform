@@ -30,6 +30,7 @@ DEFAULT_PDF_ROOT = REPO_ROOT / "benchmarks" / "corpora" / "local_pdfs"
 HYBRID_MODULE_PATH = REPO_ROOT / "services" / "inference-api" / "utils" / "hybrid_retrieval.py"
 INGESTION_SUPPORTED_DOC_TYPES = {"legal_contract", "financial_report"}
 TERMINAL_STATUSES = {"ocr_complete", "embedding_complete", "indexed", "completed", "failed"}
+INGESTION_SUPPORTED_SUFFIXES = {".pdf"}
 METRIC_KEYS = ["recall@1", "recall@3", "recall@5", "mrr", "ndcg@5"]
 
 def _load_hybrid_module():
@@ -134,6 +135,15 @@ def ingest(args: argparse.Namespace) -> dict[str, Any]:
                     "filename": document.filename,
                     "status": "skipped",
                     "error": f"doc_type {document.doc_type!r} is not supported by the ingestion API",
+                })
+                continue
+            if local_path.suffix.lower() not in INGESTION_SUPPORTED_SUFFIXES:
+                document_results.append({
+                    "manifest_document_id": document.document_id,
+                    "filename": document.filename,
+                    "status": "skipped",
+                    "source_format": getattr(document, "source_format", "unknown"),
+                    "error": "ingest mode only uploads PDF files; render or convert this source before ingestion",
                 })
                 continue
 

@@ -248,3 +248,12 @@
 - Extended `benchmarks/acquire_public_corpus.py` with a `sec-edgar` subcommand that supports no-network `--filings-json` mode and explicit SEC network mode through `--fetch-metadata`.
 - Validation run: `python -m py_compile benchmarks\corpus_sources\sec_edgar.py benchmarks\acquire_public_corpus.py`; no-network SEC smoke with mocked filing metadata; expected missing-`SEC_USER_AGENT` failure for network fetch mode.
 - Remaining limitation: no SEC filings were downloaded or committed; HTML filing manifests require the public manifest schema integration step before `validate-only` can accept non-PDF source files.
+
+### Public Manifest Integration Progress
+
+- Extended `benchmarks/corpus_manifest.py` to preserve root/document `source_metadata`, validate `source_format`, and allow public HTML filing source files while keeping path traversal checks and ignored-local-file expectations.
+- Updated `benchmarks/e2e_document_rag_eval.py` so ingest mode skips non-PDF source files with a clear conversion/rendering message instead of trying to upload SEC HTML filings.
+- Updated `benchmarks/corpora/example_manifest.json` and corpus README to document source metadata and source format fields.
+- Updated `benchmarks/corpus_sources/sec_edgar.py` so generated SEC manifests validate against the expanded schema.
+- Validation run: `python -m pytest tests\benchmark\test_corpus_manifest.py -q` - 7 passed; `python -m py_compile benchmarks\corpus_manifest.py benchmarks\e2e_document_rag_eval.py benchmarks\corpus_sources\sec_edgar.py`; SEC HTML no-network manifest generation plus validate-only smoke.
+- Remaining limitation: HTML filings still require rendering or conversion before ingestion because the existing ingestion API accepts PDFs/images, not SEC HTML.

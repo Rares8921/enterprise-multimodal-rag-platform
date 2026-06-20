@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from benchmarks.corpus_manifest import validate_manifest_payload
 from benchmarks.public_corpus_sources import PublicCorpusSource, load_public_source_registry
 
 
@@ -178,6 +179,7 @@ def prepare_sec_corpus(
         ]
 
     manifest = build_sec_manifest(specs, source=source)
+    validate_manifest_payload(manifest)
     manifest_out.parent.mkdir(parents=True, exist_ok=True)
     manifest_out.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return {

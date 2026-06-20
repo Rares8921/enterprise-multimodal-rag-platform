@@ -2,45 +2,58 @@
   "corpus_id": "example_private_contracts_001",
   "corpus_name": "Example Private Contract Corpus",
   "mode": "private_local",
+  "source_metadata": {
+    "source_id": "example_private_local",
+    "source_name": "Example local-only corpus",
+    "license_or_usage_note": "Template metadata only. Replace with real source and usage notes for local corpora."
+  },
   "documents": [
     {
-      "document_id": "example_msa_001",
-      "filename": "example_master_services_agreement.pdf",
+      "document_id": "example_contract_001",
+      "filename": "example_contract_001.pdf",
       "doc_type": "legal_contract",
-      "source_type": "local_private_pdf",
-      "source_note": "Placeholder example. Replace with a local PDF that you are allowed to evaluate.",
+      "source_type": "private_local",
+      "source_note": "Template only. Replace with local source details; do not commit private PDFs.",
+      "source_format": "pdf",
+      "source_metadata": {
+        "source_format": "pdf"
+      },
       "page_count": null,
       "allowed_to_commit": false
     },
     {
-      "document_id": "example_annual_report_001",
-      "filename": "example_annual_report.pdf",
+      "document_id": "example_financial_001",
+      "filename": "example_financial_001.pdf",
       "doc_type": "financial_report",
-      "source_type": "local_private_pdf",
-      "source_note": "Placeholder example. Replace with a local PDF that you are allowed to evaluate.",
+      "source_type": "private_local",
+      "source_note": "Template only. Replace with local source details; do not commit private PDFs.",
+      "source_format": "pdf",
+      "source_metadata": {
+        "source_format": "pdf"
+      },
       "page_count": null,
       "allowed_to_commit": false
     }
   ],
   "queries": [
     {
-      "query_id": "q001",
-      "query": "What termination notice period does the agreement require?",
+      "query_id": "q_contract_termination",
+      "query": "What does the agreement say about termination for convenience?",
       "category": "legal_clause",
-      "target_document_ids": ["example_msa_001"],
-      "relevant_pages": [],
+      "target_document_ids": ["example_contract_001"],
+      "relevant_pages": [2],
       "relevant_chunk_ids": [],
-      "expected_answer_hints": ["termination", "notice"],
+      "expected_answer_hints": ["termination", "convenience"],
       "citation_required": true
     },
     {
-      "query_id": "q002",
-      "query": "What revenue figure is reported for the latest fiscal year?",
-      "category": "financial_numeric",
-      "target_document_ids": ["example_annual_report_001"],
-      "relevant_pages": [],
+      "query_id": "q_financial_revenue",
+      "query": "What revenue trend is described in the report?",
+      "category": "numeric_financial",
+      "target_document_ids": ["example_financial_001"],
+      "relevant_pages": [1],
       "relevant_chunk_ids": [],
-      "expected_answer_hints": ["revenue", "fiscal year"],
+      "expected_answer_hints": ["revenue"],
       "citation_required": true
     }
   ]
