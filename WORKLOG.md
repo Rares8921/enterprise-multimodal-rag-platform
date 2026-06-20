@@ -265,3 +265,11 @@
 - Preflight writes JSON and Markdown reports using the existing report writer and exits non-zero when required checks fail.
 - Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; validate-only preflight smoke against the example manifest; expected failing retrieve preflight with missing Pinecone key/index and generated failure report.
 - Remaining limitation: preflight does not prove service correctness, Pinecone index contents, provider quality, or production readiness.
+
+### Synthetic PDF Corpus Generator Progress
+
+- Added `benchmarks/generate_synthetic_pdf_corpus.py`, a dependency-free deterministic PDF generator for public-safe smoke testing of the real PDF ingestion workflow.
+- Generated and committed `benchmarks/corpora/synthetic_smoke_manifest.json`; the corresponding PDFs are generated under ignored local storage at `benchmarks/corpora/local_pdfs/synthetic_smoke/`.
+- The synthetic corpus includes legal-style and financial-style PDFs, document/page-level labels, expected answer hints, and citation-required queries.
+- Validation run: `python -m py_compile benchmarks\generate_synthetic_pdf_corpus.py`; temp synthetic generation plus validate-only with file checks; default synthetic generation plus validate-only with file checks; ingest preflight smoke generated an expected service-unavailable failure report when no ingestion service was running.
+- Remaining limitation: synthetic PDFs are not real legal/financial documents and cannot support public-document retrieval-quality claims.
