@@ -8,6 +8,7 @@ Multiservice document intelligence prototype for OCR, LayoutLMv3 layout parsing,
 - OCR processing for PDFs/images through EasyOCR.
 - Layout-aware document processing with LayoutLMv3 token classification code.
 - Tenant-scoped vector indexing and retrieval through Pinecone.
+- Hybrid retrieval reranking that combines vector candidate scores with BM25 lexical scores.
 - LLM prompt selection for legal contracts and financial reports.
 - Cost-aware LLM routing between Gemini and Mistral using typed complexity scoring.
 - LLM fallback, response caching, citation extraction, confidence scoring, and token/cost accounting.
@@ -124,6 +125,7 @@ Make targets are also available:
 ```powershell
 make test
 make test-llm-routing
+make test-hybrid-retrieval
 make test-benchmark
 ```
 
@@ -174,7 +176,7 @@ The current checked-in benchmark is mock/synthetic. It supports reproducibility 
 ## Supported Claims
 
 - The repository contains code for OCR-based document ingestion and LayoutLMv3 layout parsing.
-- The repository contains vector retrieval over Pinecone-indexed document chunks.
+- The repository contains vector retrieval over Pinecone-indexed document chunks plus BM25 reranking over retrieved candidates.
 - The repository contains typed, tested LLM routing with cost-aware model selection.
 - The repository contains deterministic tests for routing, prompts, fallback, caching, citations, confidence, cost estimation, and malformed provider responses.
 - The repository contains a reproducible mock benchmark comparing LLM routing strategies.
@@ -189,17 +191,17 @@ The current checked-in benchmark is mock/synthetic. It supports reproducibility 
 - No compliance readiness is claimed.
 - No production security guarantee is claimed.
 - No real LLM answer accuracy is claimed from the mock benchmark.
-- No hybrid vector-plus-BM25 retrieval claim is supported yet; BM25 is not implemented in the current repository.
+- No claim is made that BM25 is a separate first-stage index; current hybrid retrieval reranks vector candidates with BM25.
 - No LayoutLMv3 production accuracy number is claimed.
 
 ## Known Limitations
 
 - The LLM benchmark is mock/synthetic and uses estimated latency/cost.
-- Hybrid retrieval with BM25 is not implemented yet.
+- Hybrid retrieval is currently a reranking layer over vector candidates, not a separately evaluated production retrieval stack.
 - Some Docker Compose images use `latest`, which weakens environment reproducibility.
 - Full local stack execution requires external services and credentials.
 - Real provider benchmark mode is not implemented yet.
 
 ## CI
 
-`.github/workflows/test-and-benchmark-smoke.yml` runs the deterministic routing tests, benchmark tests, and mock benchmark without real API keys or external services.
+`.github/workflows/test-and-benchmark-smoke.yml` runs deterministic routing tests, hybrid retrieval tests, benchmark tests, and the mock benchmark without real API keys or external services.

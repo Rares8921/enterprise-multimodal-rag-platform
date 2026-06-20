@@ -34,7 +34,7 @@
 - Reduced router import coupling so benchmark code can use the router without loading service environment settings.
 - Generated checked-in mock benchmark evidence under `benchmarks/results` for commit `f0d1fd0`.
 - Added LLM routing benchmark documentation, system architecture documentation, and a portfolio-style case study with explicit limitations.
-- Documented that BM25/hybrid retrieval is not implemented yet and must not be claimed as supported.
+- Initially documented BM25/hybrid retrieval as unsupported, then added a bounded BM25 reranking implementation and updated the claim ledger.
 - Added a reviewer-oriented README with quickstart, architecture summary, required services, environment variables, test commands, benchmark commands, supported claims, unsupported claims, and known limitations.
 - Added Makefile targets for focused routing tests, benchmark tests, and the mock LLM routing benchmark.
 - Added `.env.example` with placeholder-only local development variables.
@@ -42,6 +42,9 @@
 - Updated `.gitignore` for local LLM routing benchmark artifacts while preserving the existing `TODO.txt` ignore.
 - Added the missing `google-generativeai` runtime dependency used by the Gemini wrapper.
 - Added `PROJECT_EVIDENCE.md` mapping supported CV claims to code, tests, benchmark evidence, validation commands, and limitations.
+- Added BM25 hybrid reranking over Pinecone vector candidates in the inference API query path.
+- Added deterministic unit tests for tokenization, BM25 scoring, hybrid reranking, empty-query behavior, and weight validation.
+- Updated README, architecture docs, case study, CI, Makefile, and evidence file to support a bounded hybrid retrieval claim.
 
 ## Files Changed
 
@@ -53,6 +56,11 @@
 - `Makefile`
 - `PROJECT_EVIDENCE.md`
 - `requirements.txt`
+- `services/inference-api/config.py`
+- `services/inference-api/main.py`
+- `services/inference-api/utils/__init__.py`
+- `services/inference-api/utils/context_utility.py`
+- `services/inference-api/utils/hybrid_retrieval.py`
 - `services/llm-orchestrator/complexity_analyzer.py`
 - `services/llm-orchestrator/config.py`
 - `services/llm-orchestrator/main.py`
@@ -68,6 +76,7 @@
 - `docs/architecture.md`
 - `docs/case-study.md`
 - `tests/benchmark/test_llm_routing_benchmark.py`
+- `tests/unit/test_hybrid_retrieval.py`
 - `tests/unit/test_llm_routing.py`
 
 ## Tests and Checks Run
@@ -83,6 +92,8 @@
 - `python -c "import json; data=json.load(open('benchmarks/results/llm_routing_benchmark_mock_latest.json')); print(data['git_commit']); [print(k, v['summary']['estimated_total_cost_usd'], v['summary']['latency_ms'], v['summary']['cache_hit_rate'], v['summary']['fallback_count'], v['summary']['quality_proxy']) for k,v in data['strategies'].items()]"`
 - `python -m pytest tests\unit\test_llm_routing.py tests\benchmark\test_llm_routing_benchmark.py -q` - 14 passed.
 - `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id hygiene` - wrote JSON, Markdown, and CSV reports to a temporary directory.
+- `python -m pytest tests\unit\test_hybrid_retrieval.py -q` - 5 passed.
+- `python -m pytest tests\unit\test_llm_routing.py tests\unit\test_hybrid_retrieval.py tests\benchmark\test_llm_routing_benchmark.py -q` - 19 passed.
 
 ## Remaining Risks and Limitations
 
@@ -90,4 +101,5 @@
 - The benchmark is explicitly mock/synthetic; it estimates latency and cost and must not be described as production performance or real model quality.
 - Documentation is not a substitute for real provider benchmarks, real retrieval evaluation, or production deployment evidence.
 - CI is a smoke workflow only; it does not run the full Docker Compose stack or integration tests.
-- `PROJECT_EVIDENCE.md` marks hybrid BM25 retrieval, real provider performance, production usage, and compliance/security claims as unsupported.
+- Hybrid retrieval is implemented as BM25 reranking over vector candidates; there is still no labeled retrieval-quality benchmark.
+- `PROJECT_EVIDENCE.md` marks real provider performance, production usage, and compliance/security claims as unsupported.

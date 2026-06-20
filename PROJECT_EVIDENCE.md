@@ -47,23 +47,26 @@ Limitations:
 - No production model registry evidence is claimed beyond code/test scaffolding.
 
 Claim:
-The project implements vector-based RAG retrieval over tenant-scoped document chunks.
+The project implements vector-based RAG retrieval over tenant-scoped document chunks with BM25 hybrid reranking.
 
 Evidence:
-The embedding worker chunks OCR/layout output, generates sentence-transformer embeddings, and writes vectors with tenant/document metadata into Pinecone namespaces. The inference API embeds queries and retrieves matching metadata from Pinecone.
+The embedding worker chunks OCR/layout output, generates sentence-transformer embeddings, and writes vectors with tenant/document metadata into Pinecone namespaces. The inference API embeds queries, retrieves matching metadata from Pinecone, then reranks vector candidates with BM25 lexical scores before building LLM context.
 
 Files:
 - `services/embedding/main.py`
 - `services/embedding/EmbeddingGenerator.py`
 - `services/embedding/VectorStore.py`
 - `services/inference-api/main.py`
+- `services/inference-api/utils/hybrid_retrieval.py`
+- `tests/unit/test_hybrid_retrieval.py`
 - `docker-compose.yml`
 
 Validation:
 - Query flow documented in `docs/architecture.md`.
+- `python -m pytest tests\unit\test_hybrid_retrieval.py -q` passed with 5 tests.
 
 Limitations:
-- BM25/hybrid retrieval is not implemented yet.
+- BM25 is used as a reranker over vector candidates, not as a separate first-stage index.
 - No retrieval quality benchmark over labeled relevant documents is currently included.
 
 Claim:
@@ -82,7 +85,7 @@ Files:
 
 Validation:
 - `python -m pytest tests\unit\test_llm_routing.py -q` passed with 11 tests.
-- Combined deterministic smoke run passed with 14 tests: `python -m pytest tests\unit\test_llm_routing.py tests\benchmark\test_llm_routing_benchmark.py -q`.
+- Combined deterministic smoke run passed with 19 tests: `python -m pytest tests\unit\test_llm_routing.py tests\unit\test_hybrid_retrieval.py tests\benchmark\test_llm_routing_benchmark.py -q`.
 
 Limitations:
 - Unit tests use mocked providers and do not call real Gemini or Mistral endpoints.
@@ -199,7 +202,7 @@ Files:
 - `README.md`
 
 Validation:
-- `python -m pytest tests\unit\test_llm_routing.py tests\benchmark\test_llm_routing_benchmark.py -q` passed with 14 tests.
+- `python -m pytest tests\unit\test_llm_routing.py tests\unit\test_hybrid_retrieval.py tests\benchmark\test_llm_routing_benchmark.py -q` passed with 19 tests.
 - `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id hygiene` wrote JSON, Markdown, and CSV reports to a temporary directory.
 
 Limitations:
@@ -217,6 +220,6 @@ Limitations:
 - Do not claim legal or financial correctness.
 - Do not claim compliance readiness.
 - Do not claim production security guarantees.
-- Do not claim hybrid vector-plus-BM25 retrieval; BM25 is not implemented yet.
+- Do not claim BM25 is a separate first-stage retrieval index; current BM25 support is candidate reranking.
 - Do not claim LayoutLMv3 production accuracy; no validated accuracy report is included.
 - Do not claim retrieval quality over a labeled dataset; no such benchmark is included yet.

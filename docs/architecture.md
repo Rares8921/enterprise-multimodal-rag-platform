@@ -62,12 +62,13 @@ flowchart LR
   Cache -->|hit| Resp["Return cached response"]
   Cache -->|miss| Emb["Encode query"]
   Emb --> Pinecone["Pinecone vector query"]
-  Pinecone --> Context["Sanitize and limit context"]
+  Pinecone --> Hybrid["Hybrid rerank: vector score + BM25"]
+  Hybrid --> Context["Sanitize and limit context"]
   Context --> LLM["llm-orchestrator /generate"]
   LLM --> Resp
 ```
 
-The implemented retrieval path is vector retrieval through Pinecone. A repository search found no BM25 implementation yet, so hybrid vector-plus-BM25 retrieval should be treated as a current gap, not a supported claim.
+The retrieval path uses Pinecone for first-stage vector candidates, then reranks those candidates with BM25 lexical scores in `services/inference-api/utils/hybrid_retrieval.py`. This supports a bounded hybrid retrieval claim: vector retrieval plus BM25 reranking over retrieved candidates. It is not a separate first-stage BM25 index.
 
 ## LLM Routing Flow
 
@@ -137,7 +138,7 @@ Implemented mechanisms include:
 
 ## Current Gaps
 
-- Hybrid retrieval with BM25 is not implemented yet.
+- Hybrid retrieval is implemented as BM25 reranking over vector candidates; it does not yet have a labeled retrieval-quality benchmark.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.
 - The compose stack uses some `latest` images; pinning all runtime images would improve reproducibility.

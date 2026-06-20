@@ -32,7 +32,7 @@ The query path is:
 - Use Redis queues for OCR, layout parsing, and embedding to keep document processing asynchronous.
 - Store raw documents in MinIO and metadata/status in PostgreSQL plus Redis for fast status/cache access.
 - Use LayoutLMv3 for document structure extraction rather than plain text-only OCR output.
-- Use tenant-scoped vector namespaces in Pinecone.
+- Use tenant-scoped vector namespaces in Pinecone, then rerank vector candidates with BM25 lexical scores.
 - Keep LLM routing deterministic enough to unit test with mocked providers.
 - Use a mock benchmark first so routing mechanics can be reproduced without credentials.
 
@@ -104,7 +104,7 @@ Interpretation: the heuristic selects Mistral for simple/medium requests and Gem
 
 ## 9. Limitations
 
-- Hybrid vector plus BM25 retrieval is not implemented yet.
+- Hybrid retrieval is implemented as BM25 reranking over vector candidates, not as a separate first-stage BM25 index.
 - The LLM benchmark does not call real model providers.
 - Latency numbers are deterministic estimates, not measured provider latency.
 - Quality proxy is not semantic evaluation.
@@ -115,7 +115,7 @@ Interpretation: the heuristic selects Mistral for simple/medium requests and Gem
 
 ## 10. What I Would Improve Next
 
-- Add BM25 lexical retrieval and an explicit hybrid vector/BM25 ranking test.
+- Add a labeled retrieval benchmark for the hybrid vector/BM25 reranking layer.
 - Add a real-provider benchmark mode with opt-in credentials and strict report labeling.
 - Add retrieval evaluation datasets with known relevant chunk IDs.
 - Pin container image versions used by Docker Compose.

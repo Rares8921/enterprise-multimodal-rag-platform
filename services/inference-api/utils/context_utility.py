@@ -1,6 +1,10 @@
 from typing import List, Dict, Any
 import re
-from ..config import Settings
+
+try:
+    from ..config import Settings
+except ImportError:  # Supports service-root imports used by tests and Docker.
+    from config import Settings
 
 settings = Settings() # used in main and here lol
 

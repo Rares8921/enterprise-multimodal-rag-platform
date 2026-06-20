@@ -27,6 +27,7 @@ except ImportError:
     logging.warning("tiktoken not available, falling back to char estimation")
 
 from config import Settings
+from utils.hybrid_retrieval import hybrid_rerank
 from auth import get_current_auth_context, AuthContext
 from auth.dependencies import create_test_api_key_for_tenant
 from auth.config import get_auth_config
@@ -721,7 +722,8 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
                     loop.run_in_executor(None, lambda: query_pinecone(query_embedding, request.top_k, tenant_id, filter_dict)),
                     timeout=settings.pinecone_timeout
                 )
-                for match in retrieval_results.get('matches', []):
+                ranked_matches = hybrid_rerank(request.query, retrieval_results.get('matches', []))
+                for match in ranked_matches:
                     if match.get('score', 0) < settings.min_retrieval_score:
                         continue
                     metadata = match.get('metadata') or {}
@@ -731,7 +733,9 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
                         'type': metadata.get('type', 'text'),
                         'doc_id': metadata.get('doc_id', ''),
                         'filename': metadata.get('filename', ''),
-                        'score': match.get('score', 0.0)
+                        'score': match.get('hybrid_score', match.get('score', 0.0)),
+                        'vector_score': match.get('vector_score', match.get('score', 0.0)),
+                        'bm25_score': match.get('bm25_score', 0.0)
                     })
                 context = limit_context_size(context)
                 retrieval_time = time.time() - retrieval_start

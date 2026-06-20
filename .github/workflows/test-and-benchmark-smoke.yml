@@ -24,7 +24,7 @@ jobs:
           python -m pip install pytest pytest-cov fastapi httpx redis prometheus-client pydantic pydantic-settings
 
       - name: Run deterministic routing tests
-        run: python -m pytest tests/unit/test_llm_routing.py tests/benchmark/test_llm_routing_benchmark.py -q
+        run: python -m pytest tests/unit/test_llm_routing.py tests/unit/test_hybrid_retrieval.py tests/benchmark/test_llm_routing_benchmark.py -q
 
       - name: Run mock routing benchmark
         run: python benchmarks/llm_routing_benchmark.py --output-dir /tmp/llm-routing-benchmark --run-id ci
