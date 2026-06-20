@@ -174,3 +174,12 @@
 - Extended `benchmarks/corpus_manifest.py` with a local corpus loader that resolves PDFs under a configured local PDF root, checks missing files, rejects path traversal, warns for private/local manifests, and rejects `allowed_to_commit=true` in `private_local` corpora.
 - Added deterministic tests for valid manifests, missing PDFs, duplicate document IDs, missing query targets, private/local warnings, commit-safety validation, and bad filenames.
 - Validation run: `python -m pytest tests\benchmark\test_corpus_manifest.py -q` - 7 passed.
+
+### Document RAG Ingestion Runner Progress
+
+- Added `benchmarks/e2e_document_rag_eval.py` with `validate-only` and `ingest` modes.
+- `validate-only` validates a manifest and local file references without service calls.
+- `ingest` uploads supported PDF document types to the configured ingestion API, records per-document service IDs/statuses, can poll document status, and writes a JSON run artifact.
+- Service URLs, tenant ID, API key, and bearer token are provided by CLI arguments or environment variables; no secrets are hardcoded.
+- Validation run: `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\example_manifest.json --skip-file-check --output-dir $env:TEMP\document-rag-eval --run-id smoke`.
+- Ingestion was not executed because no local PDFs or live ingestion service are committed with the repository.
