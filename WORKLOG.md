@@ -232,3 +232,11 @@
 - Updated `benchmarks/corpora/README.md` to clarify that the registry is not a downloaded corpus and raw public files still stay in ignored local storage by default.
 - Validation run: `python -m py_compile benchmarks\public_corpus_sources.py`; `python -c "from benchmarks.public_corpus_sources import load_public_source_registry; r=load_public_source_registry(); print(r.summary())"`.
 - Remaining limitation: this step adds source metadata only; no public documents were downloaded, ingested, indexed, or evaluated.
+
+### CUAD Acquisition Adapter Progress
+
+- Added `benchmarks/corpus_sources/cuad.py` for CUAD-style metadata parsing, deterministic document selection, manifest generation, optional local PDF copying, and optional explicit-URL PDF downloads into ignored local corpus storage.
+- Added `benchmarks/acquire_public_corpus.py` with a `cuad` subcommand for generating `benchmarks/corpora/cuad_manifest.generated.json` and preparing files under `benchmarks/corpora/local_pdfs/cuad/`.
+- The adapter preserves CUAD attribution/source metadata in generated manifests and keeps `allowed_to_commit=false` for raw contract PDFs by default.
+- Validation run: `python -m py_compile benchmarks\corpus_sources\cuad.py benchmarks\acquire_public_corpus.py`; no-network CUAD smoke with mocked metadata; validate-only smoke against the generated temp manifest.
+- Remaining limitation: no CUAD files were downloaded or committed; real CUAD usage still requires local dataset acquisition and license/terms review.
