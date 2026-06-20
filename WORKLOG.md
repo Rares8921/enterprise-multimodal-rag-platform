@@ -207,3 +207,10 @@
 - Reports include command, timestamp, git commit, environment summary, manifest path, corpus counts, services used without secrets, mode-specific metrics, per-query rows when available, limitations, and unsupported claims.
 - Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; validate-only JSON/Markdown/CSV smoke; answer JSON/Markdown smoke against an unreachable local query endpoint.
 - No checked-in real-service report was generated because no curated PDFs, live services, Pinecone credentials, or provider credentials are committed with the repository.
+
+### Document RAG Documentation Progress
+
+- Updated `README.md`, `docs/architecture.md`, `docs/case-study.md`, and `PROJECT_EVIDENCE.md` to document the real-service document RAG evaluation harness, local corpus workflow, exact commands, supported harness claim, and unsupported production-quality claims.
+- Files changed in this step: `README.md`, `docs/architecture.md`, `docs/case-study.md`, `PROJECT_EVIDENCE.md`, and `WORKLOG.md`.
+- Validation run: `python -m pytest tests\benchmark\test_corpus_manifest.py -q` - 7 passed; `python -m py_compile benchmarks\e2e_document_rag_eval.py`; `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\example_manifest.json --skip-file-check --output-dir $env:TEMP\document-rag-eval --run-id docs_check`.
+- Remaining limitation: no real PDF corpus, live ingestion service, Pinecone index, or provider-backed answer report is committed with the repository.

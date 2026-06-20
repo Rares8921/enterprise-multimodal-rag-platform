@@ -10,6 +10,7 @@ Multiservice document intelligence prototype for OCR, LayoutLMv3 layout parsing,
 - Tenant-scoped vector indexing and retrieval through Pinecone.
 - Hybrid retrieval reranking that combines vector candidate scores with BM25 lexical scores.
 - Labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies with Recall@k, MRR, and nDCG.
+- Real-service document RAG evaluation harness for curated local PDF corpora, with manifest validation, ingestion runs, Pinecone retrieval evaluation, optional answer proxy evaluation, and JSON/Markdown reports.
 - LLM prompt selection for legal contracts and financial reports.
 - Cost-aware LLM routing between Gemini and Mistral using typed complexity scoring.
 - LLM fallback, response caching, citation extraction, confidence scoring, and token/cost accounting.
@@ -26,6 +27,7 @@ See:
 - `docs/architecture.md`
 - `docs/case-study.md`
 - `docs/llm-routing-benchmark.md`
+- `benchmarks/corpora/README.md`
 - `benchmarks/results/retrieval_benchmark_latest.md`
 
 ## Quickstart
@@ -102,6 +104,11 @@ GEMINI_API_KEY
 MISTRAL_API_URL
 LLM_ORCHESTRATOR_URL
 INGESTION_SERVICE_URL
+DOCUMENT_RAG_EVAL_TENANT_ID
+DOCUMENT_RAG_EVAL_API_KEY
+DOCUMENT_RAG_EVAL_BEARER_TOKEN
+DOCUMENT_RAG_EVAL_EMBEDDING_MODEL
+PINECONE_NAMESPACE
 MLFLOW_TRACKING_URI
 PROMETHEUS_URL
 GRAFANA_ADMIN_PASSWORD
@@ -157,6 +164,12 @@ Synthetic offline retrieval benchmark:
 python benchmarks\retrieval_benchmark.py --output-dir benchmarks\results --run-id latest
 ```
 
+Curated PDF document RAG harness:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\example_manifest.json --skip-file-check
+```
+
 Make target:
 
 ```powershell
@@ -176,6 +189,42 @@ The retrieval benchmark compares:
 - `hybrid_70_30`, `hybrid_50_50`, and `hybrid_30_70`: score-weight ablations.
 
 Benchmarks write JSON and Markdown reports. CSV is optional for the retrieval benchmark and ignored by `.gitignore`.
+
+## Curated PDF Corpus Evaluation
+
+Raw PDFs should be placed under the ignored local directory:
+
+```text
+benchmarks\corpora\local_pdfs\
+```
+
+Use `benchmarks\corpora\example_manifest.json` as the manifest template. The manifest is committed, but private PDFs and local generated reports are ignored by default.
+
+Validate a corpus manifest and local PDF references:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\my_manifest.json
+```
+
+Run ingestion against a local ingestion service:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py ingest --manifest benchmarks\corpora\my_manifest.json --tenant-id tenant_eval_local --ingestion-url http://localhost:8001 --poll-status --run-id local_ingest
+```
+
+Run Pinecone-backed retrieval evaluation after ingestion:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py retrieve --manifest benchmarks\corpora\my_manifest.json --tenant-id tenant_eval_local --pinecone-index doc-intelligence --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_local_ingest.json --run-id local_retrieve
+```
+
+Run optional answer proxy evaluation against the query service:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\my_manifest.json --tenant-id tenant_eval_local --query-api-url http://localhost:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_local_ingest.json --run-id local_answer
+```
+
+These commands produce local JSON/Markdown reports under `benchmarks\corpora\results\`. The reports are ignored by default unless a specific, safe report is intentionally selected for review.
 
 ## Reading Benchmark Reports
 
@@ -209,7 +258,22 @@ Retrieval reports include:
 - top-5 misses and candidate-pool misses
 - limitations
 
+Document RAG corpus reports include:
+
+- command used
+- timestamp and git commit
+- environment summary
+- manifest path and PDF root
+- corpus document/query counts
+- services used, without secrets
+- ingestion success/failure counts when ingestion is run
+- Recall@1, Recall@3, Recall@5, MRR, and nDCG@5 when retrieval labels are available
+- optional answer proxy metrics, including non-empty answer rate, citation presence, and expected-hint overlap
+- per-query rows, misses, limitations, and unsupported claims
+
 The current checked-in LLM routing benchmark is mock/synthetic. The current checked-in retrieval benchmark is synthetic/offline and uses simulated vector scores. These reports support reproducibility of the methods, not real production performance.
+
+The curated PDF document RAG harness is implemented, but this repository does not include a checked-in real PDF/Pinecone run. Any local report must be interpreted as environment-specific evidence, not production retrieval quality.
 
 Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmark_latest.json`:
 
@@ -226,6 +290,7 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - The repository contains code for OCR-based document ingestion and LayoutLMv3 layout parsing.
 - The repository contains vector retrieval over Pinecone-indexed document chunks plus BM25 reranking over retrieved candidates.
 - The repository contains a labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies.
+- The repository contains a real-service evaluation harness for curated PDF corpora, supporting manifest validation, ingestion runs, Pinecone-backed retrieval evaluation, optional answer proxy evaluation, and report generation.
 - The repository contains typed, tested LLM routing with cost-aware model selection.
 - The repository contains deterministic tests for routing, prompts, fallback, caching, citations, confidence, cost estimation, and malformed provider responses.
 - The repository contains a reproducible mock benchmark comparing LLM routing strategies.
@@ -241,6 +306,8 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - No production security guarantee is claimed.
 - No real LLM answer accuracy is claimed from the mock benchmark.
 - No production retrieval quality or real Pinecone performance is claimed from the synthetic retrieval benchmark.
+- No real PDF corpus result, Pinecone retrieval result, or answer quality result is claimed unless a local run report is generated and reviewed.
+- No customer/private document evaluation is claimed.
 - No legal or financial correctness is claimed from the synthetic retrieval benchmark.
 - No claim is made that BM25 is a separate first-stage index; current hybrid retrieval reranks vector candidates with BM25.
 - No LayoutLMv3 production accuracy number is claimed.
@@ -249,6 +316,7 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 
 - The LLM benchmark is mock/synthetic and uses estimated latency/cost.
 - The retrieval benchmark is synthetic/offline and uses simulated vector scores, not Pinecone measurements.
+- The document RAG harness has not been run against a committed real PDF corpus in this repository.
 - Hybrid retrieval is currently a reranking layer over vector candidates, not a separate first-stage BM25 index.
 - Some Docker Compose images use `latest`, which weakens environment reproducibility.
 - Full local stack execution requires external services and credentials.

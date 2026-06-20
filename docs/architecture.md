@@ -13,7 +13,7 @@ This repository is organized as a multi-service document intelligence platform:
 | Query API | `services/inference-api` | Authenticate, rate-limit, retrieve context, call LLM orchestrator, cache responses. |
 | LLM orchestration | `services/llm-orchestrator` | Select prompt, route model, call provider wrapper, fallback, cache, estimate cost. |
 | Monitoring | `monitoring`, `services/monitoring`, Prometheus metrics in services | Export service metrics and provide Prometheus/Grafana configuration. |
-| Benchmarks | `benchmarks`, `tests/benchmark` | Reproducible benchmark utilities, labeled synthetic retrieval fixtures, and smoke tests. |
+| Benchmarks | `benchmarks`, `tests/benchmark` | Reproducible benchmark utilities, labeled synthetic retrieval fixtures, real-service corpus harness, and smoke tests. |
 
 ## Document Ingestion Flow
 
@@ -96,6 +96,32 @@ The benchmark compares vector-only, BM25-only reranking over the same candidate 
 
 The benchmark uses a deterministic semantic proxy rather than Pinecone embeddings. It supports reproducible comparison of retrieval mechanics on labeled synthetic fixtures, not production retrieval quality.
 
+## Document RAG Evaluation Harness Flow
+
+```mermaid
+flowchart LR
+  M["Committed corpus manifest"] --> V["validate-only mode"]
+  P["Ignored local PDFs"] --> V
+  V --> I["ingest mode via ingestion API"]
+  I --> Pipe["OCR, layout, embedding pipeline"]
+  Pipe --> PC["Pinecone namespace"]
+  PC --> R["retrieve mode: Pinecone candidates + BM25 rerank"]
+  R --> A["optional answer mode via query API"]
+  R --> Reports["JSON/Markdown reports"]
+  A --> Reports
+```
+
+`benchmarks/e2e_document_rag_eval.py` provides the real-service evaluation harness. Raw PDFs live under ignored local paths such as `benchmarks/corpora/local_pdfs/`, while manifests are small committed JSON files that describe document metadata and query labels. Generated reports are written under `benchmarks/corpora/results/` and are ignored by default.
+
+The harness supports:
+
+- `validate-only`: schema and local-file validation without service calls
+- `ingest`: upload PDFs to the ingestion API and record per-document status
+- `retrieve`: query a configured Pinecone index/namespace, apply the existing BM25 hybrid reranker, and compute Recall@k, MRR, and nDCG when labels are available
+- `answer`: optionally call the query API and record lightweight answer proxy metrics
+
+This harness enables local real-service case-study runs over curated PDF corpora. It does not create a production retrieval-quality claim by itself; a claim about a specific corpus requires a generated report, documented environment, and clear limitations.
+
 ## LLM Routing Flow
 
 ```mermaid
@@ -165,6 +191,7 @@ Implemented mechanisms include:
 ## Current Gaps
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates; the included benchmark is synthetic/offline and does not measure Pinecone production behavior.
+- A real-service document RAG harness exists for local PDF corpora, but no checked-in real PDF/Pinecone report is included yet.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.
 - The compose stack uses some `latest` images; pinning all runtime images would improve reproducibility.

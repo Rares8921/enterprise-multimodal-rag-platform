@@ -100,6 +100,32 @@ Limitations:
 - This does not prove production retrieval quality, legal correctness, financial correctness, real latency, QPS, or customer data behavior.
 
 Claim:
+Built a real-service evaluation harness for curated PDF corpora, supporting ingestion validation, Pinecone-backed retrieval evaluation, optional answer proxy evaluation, and report generation with Recall@k, MRR, and nDCG.
+
+Evidence:
+The harness validates committed corpus manifests and ignored local PDF references, can upload PDFs through the existing ingestion API, can query a configured Pinecone index/namespace and apply the repository BM25 hybrid reranker, and can optionally call the query API for lightweight answer proxy checks. Reports include command, timestamp, git commit, environment summary, corpus counts, services used without secrets, mode-specific metrics, per-query rows, limitations, and unsupported claims.
+
+Files:
+- `benchmarks/e2e_document_rag_eval.py`
+- `benchmarks/corpus_manifest.py`
+- `benchmarks/corpora/README.md`
+- `benchmarks/corpora/example_manifest.json`
+- `benchmarks/corpora/.gitignore`
+- `tests/benchmark/test_corpus_manifest.py`
+
+Validation:
+- `python -m py_compile benchmarks\e2e_document_rag_eval.py`
+- `python -m pytest tests\benchmark\test_corpus_manifest.py -q` passed with 7 tests.
+- `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\example_manifest.json --skip-file-check --output-dir $env:TEMP\document-rag-eval --run-id report_validate --write-csv`
+- `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\example_manifest.json --skip-file-check --query-api-url http://127.0.0.1:9 --request-timeout-seconds 1 --output-dir $env:TEMP\document-rag-eval --run-id report_answer`
+
+Limitations:
+- No real local PDF corpus run is committed.
+- Ingest, retrieve, and answer modes require local services, credentials, and PDFs.
+- No Pinecone-backed retrieval metrics are claimed yet from a real PDF corpus.
+- Answer mode is a lightweight proxy and does not prove semantic correctness, legal correctness, financial correctness, or provider accuracy.
+
+Claim:
 The project implements typed, cost-aware LLM routing and orchestration.
 
 Evidence:
@@ -254,4 +280,6 @@ Limitations:
 - Do not claim BM25 is a separate first-stage retrieval index; current BM25 support is candidate reranking.
 - Do not claim LayoutLMv3 production accuracy; no validated accuracy report is included.
 - Do not claim production retrieval quality or real Pinecone performance from the synthetic offline retrieval benchmark.
+- Do not claim the document RAG harness has produced real PDF/Pinecone results until a real-service report exists.
+- Do not claim customer/private document evaluation.
 - Do not claim the synthetic retrieval benchmark proves legal or financial correctness.
