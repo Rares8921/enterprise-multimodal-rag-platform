@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from benchmarks.corpus_manifest import LoadedCorpus, format_corpus_summary, load_corpus_manifest
+from benchmarks.corpus_manifest import LoadedCorpus, ManifestValidationError, format_corpus_summary, load_corpus_manifest
 
 
 DEFAULT_MANIFEST = REPO_ROOT / "benchmarks" / "corpora" / "example_manifest.json"
@@ -276,6 +276,198 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
         "Expected-hint overlap is not semantic correctness and must not be described as legal or financial accuracy.",
     ])
     return report
+
+def preflight(args: argparse.Namespace) -> dict[str, Any]:
+    report = _preflight_base_report(args)
+    checks: list[dict[str, Any]] = []
+    loaded: LoadedCorpus | None = None
+
+    try:
+        loaded = load_corpus_manifest(args.manifest, pdf_root=args.pdf_root, require_files=False)
+        report["corpus"] = loaded.summary()
+        checks.append(_preflight_check("manifest_schema", "pass", "Manifest schema is valid.", required=True))
+    except ManifestValidationError as exc:
+        checks.append(_preflight_check("manifest_schema", "fail", str(exc), required=True))
+        report["preflight"] = {"target": args.preflight_target, "public_source": args.public_source, "checks": checks, "required_failure_count": 1, "warning_count": 0, "status": "failed"}
+        return report
+
+    missing_files = [
+        {"document_id": document.document_id, "path": str(loaded.document_paths[document.document_id])}
+        for document in loaded.manifest.documents
+        if not loaded.document_paths[document.document_id].is_file()
+    ]
+    files_required = args.preflight_target in {"ingest", "retrieve", "answer"} and not args.skip_file_check
+    if missing_files and files_required:
+        checks.append(_preflight_check("local_files", "fail", f"Missing referenced local files: {missing_files}", required=True))
+    elif missing_files:
+        checks.append(_preflight_check("local_files", "warn", f"Missing local files; skipped or optional for this preflight target: {missing_files}", required=False))
+    else:
+        checks.append(_preflight_check("local_files", "pass", "All referenced local files exist." if loaded.manifest.documents else "No documents to check.", required=files_required))
+
+    for warning in loaded.warnings:
+        checks.append(_preflight_check("corpus_warning", "warn", warning, required=False))
+
+    checks.append(_output_dir_preflight(args.output_dir))
+    checks.extend(_git_corpus_safety_checks())
+
+    if args.preflight_target == "ingest":
+        checks.append(_endpoint_preflight("ingestion_url", args.ingestion_url, args.request_timeout_seconds, required=True))
+    if args.preflight_target == "retrieve":
+        checks.extend(_pinecone_preflight(args))
+    if args.preflight_target == "answer":
+        checks.append(_endpoint_preflight("query_api_url", args.query_api_url, args.request_timeout_seconds, required=True))
+    if args.preflight_target == "acquisition" or _manifest_uses_sec(loaded):
+        checks.append(_sec_user_agent_preflight(required=args.preflight_target == "acquisition" and args.public_source == "sec_edgar"))
+
+    required_failure_count = sum(1 for check in checks if check["required"] and check["status"] == "fail")
+    report["preflight"] = {
+        "target": args.preflight_target,
+        "public_source": args.public_source,
+        "checks": checks,
+        "required_failure_count": required_failure_count,
+        "warning_count": sum(1 for check in checks if check["status"] == "warn"),
+        "status": "failed" if required_failure_count else "passed",
+    }
+    return report
+
+
+def _preflight_base_report(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "benchmark_name": "document_rag_preflight",
+        "mode": "preflight",
+        "timestamp_utc": utc_timestamp(),
+        "git_commit": get_git_commit(),
+        "command": "python " + " ".join(sys.argv),
+        "environment": {
+            "python": sys.version.split()[0],
+            "platform": platform.platform(),
+            "runner": "local document RAG preflight",
+        },
+        "corpus": {
+            "manifest_path": str(args.manifest),
+            "pdf_root": str(args.pdf_root),
+            "file_root": str(args.pdf_root),
+        },
+        "services": {
+            "ingestion_url": args.ingestion_url if args.preflight_target == "ingest" else None,
+            "pinecone_index": args.pinecone_index if args.preflight_target == "retrieve" else None,
+            "pinecone_namespace": _pinecone_namespace(args) if args.preflight_target == "retrieve" else None,
+            "embedding_model": args.embedding_model if args.preflight_target == "retrieve" else None,
+            "query_api_url": args.query_api_url if args.preflight_target == "answer" else None,
+            "tenant_id": args.tenant_id,
+        },
+        "limitations": [
+            "Preflight checks readiness only; they do not ingest, retrieve, evaluate answer quality, or prove production behavior.",
+            "Endpoint reachability checks do not prove service correctness or downstream dependencies.",
+            "Git safety checks only inspect tracked corpus artifacts in this repository worktree.",
+        ],
+        "unsupported_claims": [
+            "production usage",
+            "customer data evaluation",
+            "real users",
+            "production retrieval quality",
+            "legal or financial correctness",
+            "uptime, QPS, SLA, or real cost savings",
+        ],
+    }
+
+
+def _preflight_check(name: str, status: str, message: str, *, required: bool) -> dict[str, Any]:
+    return {"name": name, "status": status, "required": required, "message": message}
+
+
+def _output_dir_preflight(output_dir: Path) -> dict[str, Any]:
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        probe = output_dir / ".preflight_write_probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return _preflight_check("output_dir_writable", "pass", f"Output directory is writable: {output_dir}", required=True)
+    except Exception as exc:
+        return _preflight_check("output_dir_writable", "fail", f"Output directory is not writable: {exc}", required=True)
+
+
+def _git_corpus_safety_checks() -> list[dict[str, Any]]:
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "benchmarks/corpora/local_pdfs", "benchmarks/corpora/results"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        tracked = [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
+    except Exception as exc:
+        return [_preflight_check("git_corpus_safety", "warn", f"Could not inspect tracked corpus artifacts: {exc}", required=False)]
+    unsafe = [
+        path for path in tracked
+        if not path.endswith(".gitkeep")
+        and (
+            path.startswith("benchmarks/corpora/local_pdfs/")
+            or path.startswith("benchmarks/corpora/results/")
+            or path.lower().endswith((".pdf", ".html", ".htm"))
+            or "document_rag_eval_" in path
+        )
+    ]
+    if unsafe:
+        return [_preflight_check("git_corpus_safety", "fail", f"Potential raw/generated corpus artifacts are tracked: {unsafe}", required=True)]
+    return [_preflight_check("git_corpus_safety", "pass", "No raw corpus files or generated local reports are tracked under corpus storage.", required=True)]
+
+
+def _endpoint_preflight(name: str, url: str, timeout_seconds: float, *, required: bool) -> dict[str, Any]:
+    if not url:
+        return _preflight_check(name, "fail" if required else "warn", "No URL configured.", required=required)
+    try:
+        with httpx.Client(timeout=min(timeout_seconds, 5.0), follow_redirects=True) as client:
+            response = client.get(url.rstrip("/"))
+        if response.status_code < 500:
+            return _preflight_check(name, "pass", f"Endpoint responded with HTTP {response.status_code}: {url}", required=required)
+        return _preflight_check(name, "fail", f"Endpoint returned HTTP {response.status_code}: {url}", required=required)
+    except httpx.RequestError as exc:
+        return _preflight_check(name, "fail" if required else "warn", f"Endpoint is not reachable: {exc}", required=required)
+
+
+def _pinecone_preflight(args: argparse.Namespace) -> list[dict[str, Any]]:
+    checks = []
+    checks.append(_preflight_check(
+        "pinecone_api_key",
+        "pass" if args.pinecone_api_key else "fail",
+        "PINECONE_API_KEY is configured." if args.pinecone_api_key else "PINECONE_API_KEY or --pinecone-api-key is required for retrieve mode.",
+        required=True,
+    ))
+    checks.append(_preflight_check(
+        "pinecone_index",
+        "pass" if args.pinecone_index else "fail",
+        f"Pinecone index configured: {args.pinecone_index}" if args.pinecone_index else "PINECONE_INDEX or --pinecone-index is required for retrieve mode.",
+        required=True,
+    ))
+    checks.append(_preflight_check(
+        "pinecone_namespace",
+        "pass" if _pinecone_namespace(args) else "fail",
+        f"Pinecone namespace configured: {_pinecone_namespace(args)}" if _pinecone_namespace(args) else "Pinecone namespace or tenant_id is required.",
+        required=True,
+    ))
+    checks.append(_preflight_check(
+        "embedding_model",
+        "pass" if args.embedding_model else "fail",
+        f"Embedding model configured: {args.embedding_model}" if args.embedding_model else "Embedding model is required for retrieve mode.",
+        required=True,
+    ))
+    return checks
+
+
+def _manifest_uses_sec(loaded: LoadedCorpus) -> bool:
+    root_source = loaded.manifest.source_metadata.get("source_id")
+    if root_source == "sec_edgar":
+        return True
+    return any(document.source_type == "public_sec_edgar" or document.source_metadata.get("source_id") == "sec_edgar" for document in loaded.manifest.documents)
+
+
+def _sec_user_agent_preflight(*, required: bool) -> dict[str, Any]:
+    value = os.getenv("SEC_USER_AGENT")
+    if value:
+        return _preflight_check("sec_user_agent", "pass", "SEC_USER_AGENT is configured for SEC access.", required=required)
+    return _preflight_check("sec_user_agent", "fail" if required else "warn", "SEC_USER_AGENT is not configured; SEC acquisition should not run without a real contact User-Agent.", required=required)
 def write_json_report(report: dict[str, Any], output_dir: Path, run_id: str | None) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -319,6 +511,23 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
             f"Status: `{report['validation']['status']}`",
             f"File check: `{report['validation']['file_check']}`",
         ])
+
+    if "preflight" in report:
+        preflight_payload = report["preflight"]
+        lines.extend([
+            "",
+            "## Preflight",
+            "",
+            f"Target: `{preflight_payload['target']}`",
+            f"Status: `{preflight_payload['status']}`",
+            f"Required failures: `{preflight_payload['required_failure_count']}`",
+            f"Warnings: `{preflight_payload['warning_count']}`",
+            "",
+            "| Check | Status | Required | Message |",
+            "|---|---|---:|---|",
+        ])
+        for check in preflight_payload.get("checks", []):
+            lines.append(f"| `{check['name']}` | `{check['status']}` | `{check['required']}` | {check['message']} |")
 
     if "ingestion" in report:
         ingestion = report["ingestion"]
@@ -856,7 +1065,7 @@ def _pinecone_namespace(args: argparse.Namespace) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate document RAG over a curated PDF corpus.")
-    parser.add_argument("mode", choices=["validate-only", "ingest", "retrieve", "answer"])
+    parser.add_argument("mode", choices=["validate-only", "preflight", "ingest", "retrieve", "answer"])
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--pdf-root", type=Path, default=DEFAULT_PDF_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
@@ -885,6 +1094,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-choice", default="auto")
     parser.add_argument("--agent", default=None)
     parser.add_argument("--write-csv", action="store_true")
+    parser.add_argument("--preflight-target", choices=["validate-only", "ingest", "retrieve", "answer", "acquisition"], default="validate-only")
+    parser.add_argument("--public-source", choices=["cuad_atticus", "sec_edgar"], default=None)
     return parser.parse_args()
 
 
@@ -893,6 +1104,8 @@ def main() -> None:
     try:
         if args.mode == "validate-only":
             report = validate_only(args)
+        elif args.mode == "preflight":
+            report = preflight(args)
         elif args.mode == "ingest":
             report = ingest(args)
         elif args.mode == "retrieve":
@@ -916,6 +1129,8 @@ def main() -> None:
         print(f"Wrote {csv_path}")
 
     if args.mode == "ingest" and report.get("ingestion", {}).get("failure_count", 0):
+        raise SystemExit(2)
+    if args.mode == "preflight" and report.get("preflight", {}).get("required_failure_count", 0):
         raise SystemExit(2)
 
 

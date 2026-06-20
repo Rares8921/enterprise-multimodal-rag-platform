@@ -257,3 +257,11 @@
 - Updated `benchmarks/corpus_sources/sec_edgar.py` so generated SEC manifests validate against the expanded schema.
 - Validation run: `python -m pytest tests\benchmark\test_corpus_manifest.py -q` - 7 passed; `python -m py_compile benchmarks\corpus_manifest.py benchmarks\e2e_document_rag_eval.py benchmarks\corpus_sources\sec_edgar.py`; SEC HTML no-network manifest generation plus validate-only smoke.
 - Remaining limitation: HTML filings still require rendering or conversion before ingestion because the existing ingestion API accepts PDFs/images, not SEC HTML.
+
+### Document RAG Preflight Progress
+
+- Extended `benchmarks/e2e_document_rag_eval.py` with `preflight` mode and target-specific readiness checks for validate-only, ingest, retrieve, answer, and acquisition workflows.
+- Preflight checks manifest schema, local file references, corpus warnings, output directory writability, tracked corpus artifact safety, ingestion/query endpoint reachability when required, Pinecone configuration for retrieval, embedding model configuration, and SEC User-Agent readiness for SEC acquisition/evaluation contexts.
+- Preflight writes JSON and Markdown reports using the existing report writer and exits non-zero when required checks fail.
+- Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; validate-only preflight smoke against the example manifest; expected failing retrieve preflight with missing Pinecone key/index and generated failure report.
+- Remaining limitation: preflight does not prove service correctness, Pinecone index contents, provider quality, or production readiness.
