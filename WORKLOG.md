@@ -103,3 +103,30 @@
 - CI is a smoke workflow only; it does not run the full Docker Compose stack or integration tests.
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates; there is still no labeled retrieval-quality benchmark.
 - `PROJECT_EVIDENCE.md` marks real provider performance, production usage, and compliance/security claims as unsupported.
+
+## Retrieval Benchmark Plan
+
+### Current Retrieval Flow
+
+- `services/embedding/main.py` reads OCR and layout data from Redis, chunks document text with layout metadata, generates sentence-transformer embeddings, and upserts chunk vectors into Pinecone with tenant, document, page, type, filename, and text metadata.
+- `services/inference-api/main.py` encodes the query, requests top-k vector candidates from Pinecone, reranks those vector candidates with `hybrid_rerank()`, filters by the original vector score threshold, and builds LLM context with sanitized text plus `score`, `vector_score`, and `bm25_score`.
+- `services/inference-api/utils/hybrid_retrieval.py` provides deterministic tokenization, BM25 scoring, score normalization, and vector/BM25 weighted reranking.
+
+### Supported Retrieval Claim
+
+- The project supports vector retrieval over Pinecone-indexed chunks plus BM25 reranking over that candidate pool.
+- This is a bounded hybrid retrieval claim, not a claim about a separate first-stage BM25 index.
+
+### Benchmark Gap
+
+- There is no labeled retrieval-quality benchmark yet.
+- Current tests prove ranking mechanics for small hand-built examples, but they do not measure Recall@k, MRR, or nDCG over a labeled query/chunk fixture set.
+- No production Pinecone retrieval quality, legal correctness, financial correctness, customer data behavior, or production accuracy should be claimed.
+
+### Plan
+
+1. Add synthetic labeled legal/financial retrieval fixtures with document/chunk metadata and relevant chunk IDs per query.
+2. Implement an offline retrieval benchmark comparing vector-only, BM25-only, hybrid, and simple score-weight ablations.
+3. Add deterministic tests for fixture schema, metrics, ranking output, weight validation, report generation, and strategy-specific behavior.
+4. Generate checked-in JSON/Markdown benchmark evidence labeled as synthetic and offline.
+5. Update docs, README, and `PROJECT_EVIDENCE.md` with bounded retrieval benchmark claims and limitations.
