@@ -144,3 +144,7 @@
 - Metrics include Recall@1, Recall@3, Recall@5, MRR, nDCG@5, category summaries, per-query top results, top-5 misses, and candidate-pool miss counts.
 - Added a controlled labeled query where exact numeric terms allow BM25 to improve over the semantic proxy, while existing ambiguous/citation queries show semantic proxy behavior where BM25 alone ranks worse.
 - Validation run: `python benchmarks\retrieval_benchmark.py --output-dir $env:TEMP\retrieval-benchmark --run-id implementation_check`.
+
+### Retrieval Benchmark Test Progress
+
+- Added deterministic tests for retrieval fixture schema validation, metric calculation, ranking output shape, strategy/candidate-pool validation, report generation, BM25-improves behavior, and semantic-proxy-improves behavior.
