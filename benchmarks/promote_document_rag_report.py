@@ -90,7 +90,10 @@ def _sanitize_value(value: Any, *, allow_query_text: bool) -> Any:
                 cleaned[key] = "[redacted-secret-field]"
                 continue
             if key in CONTENT_KEYS:
-                cleaned[key] = "[removed-content-field]"
+                if key == "answer" and isinstance(item, dict):
+                    cleaned[key] = _sanitize_value(item, allow_query_text=allow_query_text)
+                else:
+                    cleaned[key] = "[removed-content-field]"
                 continue
             if key in QUERY_TEXT_KEYS and not allow_query_text:
                 cleaned[key] = "[removed-query-text]"

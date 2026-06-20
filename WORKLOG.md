@@ -281,3 +281,10 @@
 - The tool refuses `private_local` reports unless `--allow-private-summary` is passed, while preserving metrics, corpus mode, service names without secrets, limitations, unsupported claims, and sanitization metadata.
 - Validation run: `python -m py_compile benchmarks\promote_document_rag_report.py`; promoted a synthetic validate-only report to temp Markdown/JSON; verified private-local report promotion is refused without explicit allow flag.
 - Remaining limitation: report promotion is a review aid, not evidence that a run is public-safe or methodologically strong without human review.
+
+### Public Corpus Workflow Test Progress
+
+- Added `tests/benchmark/test_public_corpus_workflow.py` covering source registry schema, CUAD mocked manifest generation, CUAD manual-required behavior, SEC mocked manifest generation, SEC User-Agent failure, SEC metadata/fetch mode validation, preflight reports, missing file/Pinecone/private warnings, synthetic PDF generation, and report promotion sanitization/refusal behavior.
+- Fixed `benchmarks/promote_document_rag_report.py` so sanitization preserves the top-level answer proxy metrics section while still removing raw answer text fields.
+- Validation run: `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 12 passed; `python -m py_compile benchmarks\promote_document_rag_report.py tests\benchmark\test_public_corpus_workflow.py`.
+- Remaining limitation: tests use mocked metadata and temp PDFs only; they do not perform real CUAD/SEC downloads, Pinecone calls, OCR, or provider calls.
