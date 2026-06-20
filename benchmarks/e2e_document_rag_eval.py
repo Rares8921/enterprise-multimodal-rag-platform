@@ -81,6 +81,7 @@ def build_base_report(args: argparse.Namespace, loaded: LoadedCorpus) -> dict[st
             "pinecone_index": args.pinecone_index if args.mode == "retrieve" else None,
             "pinecone_namespace": _pinecone_namespace(args) if args.mode == "retrieve" else None,
             "embedding_model": args.embedding_model if args.mode == "retrieve" else None,
+            "query_api_url": args.query_api_url if args.mode == "answer" else None,
             "tenant_id": args.tenant_id,
         },
         "limitations": [
@@ -216,6 +217,43 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
         "Retrieval mode requires a live Pinecone index populated by the ingestion/OCR/layout/embedding pipeline.",
         "Document-level labels are weaker than page-level or chunk-level labels; metric interpretation depends on manifest label granularity.",
         "This is local real-service evidence only and must not be described as production retrieval quality.",
+    ])
+    return report
+
+def answer(args: argparse.Namespace) -> dict[str, Any]:
+    loaded = load_corpus_manifest(
+        args.manifest,
+        pdf_root=args.pdf_root,
+        require_files=not args.skip_file_check,
+    )
+    report = build_base_report(args, loaded)
+    ingestion_mapping = _load_ingestion_mapping(args.ingestion_run) if args.ingestion_run else {}
+    headers = _auth_headers(args)
+    document_types = {document.document_id: document.doc_type for document in loaded.manifest.documents}
+    rows: list[dict[str, Any]] = []
+
+    with httpx.Client(timeout=args.request_timeout_seconds) as client:
+        for query in loaded.manifest.queries:
+            request_payload = _build_answer_request_payload(args, query, ingestion_mapping, document_types)
+            row = _call_answer_query(client, args, headers, query, request_payload)
+            rows.append(row)
+
+    report["answer"] = {
+        "mode": "optional_real_service_answer_proxy",
+        "query_count": len(rows),
+        "failure_count": sum(1 for row in rows if row.get("status") == "failed"),
+        "non_empty_answer_rate": _rate(row.get("answer_non_empty") for row in rows),
+        "citation_presence_rate_required": _required_citation_rate(rows),
+        "average_expected_hint_overlap": round(mean(row.get("expected_hint_overlap", 0.0) for row in rows), 6) if rows else 0.0,
+        "model_counts": dict(Counter(row.get("model_used") for row in rows if row.get("model_used"))),
+        "estimated_tokens_used": sum(row.get("tokens_used", 0) or 0 for row in rows),
+        "average_confidence_score": round(mean(row.get("confidence_score", 0.0) for row in rows if row.get("confidence_score") is not None), 6) if any(row.get("confidence_score") is not None for row in rows) else 0.0,
+        "queries": rows,
+    }
+    report["limitations"].extend([
+        "Answer mode may call real LLM providers through the query service and can incur cost depending on local configuration.",
+        "Answer evaluation is a lightweight proxy: non-empty answer, citation presence, and expected-hint overlap only.",
+        "Expected-hint overlap is not semantic correctness and must not be described as legal or financial accuracy.",
     ])
     return report
 def write_json_report(report: dict[str, Any], output_dir: Path, run_id: str | None) -> Path:
@@ -512,6 +550,119 @@ def _category_metrics(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         }
         for category, category_rows in sorted(grouped.items())
     }
+
+def _build_answer_request_payload(
+    args: argparse.Namespace,
+    query: Any,
+    ingestion_mapping: dict[str, str],
+    document_types: dict[str, str],
+) -> dict[str, Any]:
+    mapped_targets = [ingestion_mapping.get(document_id, document_id) for document_id in query.target_document_ids]
+    doc_type = None
+    target_types = {document_types.get(document_id) for document_id in query.target_document_ids}
+    target_types.discard(None)
+    if len(target_types) == 1:
+        doc_type = next(iter(target_types))
+
+    payload = {
+        "query": query.query,
+        "tenant_id": args.tenant_id,
+        "top_k": args.answer_top_k,
+        "model_choice": args.model_choice,
+        "agent": args.agent,
+        "include_citations": True,
+    }
+    if doc_type in INGESTION_SUPPORTED_DOC_TYPES:
+        payload["doc_type"] = doc_type
+    if len(mapped_targets) == 1:
+        payload["doc_id"] = mapped_targets[0]
+    return payload
+
+
+def _call_answer_query(
+    client: httpx.Client,
+    args: argparse.Namespace,
+    headers: dict[str, str],
+    query: Any,
+    request_payload: dict[str, Any],
+) -> dict[str, Any]:
+    base_row = {
+        "query_id": query.query_id,
+        "query": query.query,
+        "category": query.category,
+        "citation_required": query.citation_required,
+        "expected_answer_hints": query.expected_answer_hints,
+        "request": _redacted_answer_request(request_payload),
+    }
+    try:
+        response = client.post(
+            f"{args.query_api_url.rstrip('/')}/query",
+            headers=headers or None,
+            json=request_payload,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        answer_text = payload.get("answer") or ""
+        citations = payload.get("citations") or []
+        metadata = payload.get("metadata") or {}
+        return {
+            **base_row,
+            "status": "ok",
+            "answer_non_empty": bool(answer_text.strip()),
+            "citation_present": bool(citations),
+            "expected_hint_overlap": _expected_hint_overlap(answer_text, query.expected_answer_hints),
+            "model_used": payload.get("model_used"),
+            "confidence_score": payload.get("confidence_score"),
+            "latency_ms": payload.get("latency_ms"),
+            "tokens_used": metadata.get("tokens_used", 0),
+            "retrieval_count": metadata.get("retrieval_count"),
+            "cache_hit": metadata.get("cache_hit"),
+            "citation_count": len(citations),
+        }
+    except httpx.HTTPStatusError as exc:
+        return {
+            **base_row,
+            "status": "failed",
+            "error": f"HTTP {exc.response.status_code}: {_response_text(exc.response)}",
+            "answer_non_empty": False,
+            "citation_present": False,
+            "expected_hint_overlap": 0.0,
+        }
+    except httpx.RequestError as exc:
+        return {
+            **base_row,
+            "status": "failed",
+            "error": f"Service unavailable: {exc}",
+            "answer_non_empty": False,
+            "citation_present": False,
+            "expected_hint_overlap": 0.0,
+        }
+
+
+def _expected_hint_overlap(answer: str, hints: list[str]) -> float:
+    if not hints:
+        return 0.0
+    answer_lower = answer.lower()
+    hits = sum(1 for hint in hints if hint.lower() in answer_lower)
+    return hits / len(hints)
+
+
+def _required_citation_rate(rows: list[dict[str, Any]]) -> float:
+    required = [row for row in rows if row.get("citation_required")]
+    if not required:
+        return 0.0
+    return _rate(row.get("citation_present") for row in required)
+
+
+def _rate(values: Any) -> float:
+    values = list(values)
+    if not values:
+        return 0.0
+    return round(sum(1 for value in values if value) / len(values), 6)
+
+
+def _redacted_answer_request(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if key not in {"api_key", "authorization"}}
 def _auth_headers(args: argparse.Namespace) -> dict[str, str]:
     headers: dict[str, str] = {}
     if args.api_key:
@@ -535,7 +686,7 @@ def _pinecone_namespace(args: argparse.Namespace) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate document RAG over a curated PDF corpus.")
-    parser.add_argument("mode", choices=["validate-only", "ingest", "retrieve"])
+    parser.add_argument("mode", choices=["validate-only", "ingest", "retrieve", "answer"])
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--pdf-root", type=Path, default=DEFAULT_PDF_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
@@ -559,6 +710,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--vector-weight", type=float, default=0.7)
     parser.add_argument("--bm25-weight", type=float, default=0.3)
+    parser.add_argument("--query-api-url", default=os.getenv("INFERENCE_API_URL", "http://localhost:8000"))
+    parser.add_argument("--answer-top-k", type=int, default=5)
+    parser.add_argument("--model-choice", default="auto")
+    parser.add_argument("--agent", default=None)
     return parser.parse_args()
 
 
@@ -571,6 +726,8 @@ def main() -> None:
             report = ingest(args)
         elif args.mode == "retrieve":
             report = retrieve(args)
+        elif args.mode == "answer":
+            report = answer(args)
         else:
             raise ValueError(f"Unsupported mode: {args.mode}")
     except RuntimeError as exc:

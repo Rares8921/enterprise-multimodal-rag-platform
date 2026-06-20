@@ -192,3 +192,11 @@
 - Reports include per-query top results, category metrics, label granularity counts, top-5 misses, and candidate-pool miss counts.
 - Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; `validate-only` smoke; expected missing-Pinecone-key retrieve failure.
 - Retrieval was not executed against Pinecone because no live Pinecone credentials/index are committed with the repository.
+
+### Optional Answer Evaluation Mode Progress
+
+- Extended `benchmarks/e2e_document_rag_eval.py` with optional `answer` mode that calls the configured query endpoint only when explicitly requested.
+- Answer mode records non-empty answer rate, citation presence for citation-required queries, expected-hint overlap, selected model, confidence, latency, token fields when returned, failures, and per-query proxy details.
+- The mode supports ingestion-run mappings so manifest document IDs can be translated to service document IDs for filtered query calls.
+- Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; answer smoke against `http://127.0.0.1:9` wrote a report with 2 expected service-unavailable failures and no provider calls.
+- Answer proxy metrics remain lightweight and must not be described as semantic correctness, legal correctness, financial correctness, or provider accuracy.
