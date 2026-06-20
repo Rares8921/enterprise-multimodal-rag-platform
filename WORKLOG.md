@@ -214,3 +214,13 @@
 - Files changed in this step: `README.md`, `docs/architecture.md`, `docs/case-study.md`, `PROJECT_EVIDENCE.md`, and `WORKLOG.md`.
 - Validation run: `python -m pytest tests\benchmark\test_corpus_manifest.py -q` - 7 passed; `python -m py_compile benchmarks\e2e_document_rag_eval.py`; `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\example_manifest.json --skip-file-check --output-dir $env:TEMP\document-rag-eval --run-id docs_check`.
 - Remaining limitation: no real PDF corpus, live ingestion service, Pinecone index, or provider-backed answer report is committed with the repository.
+
+## Public Corpus Readiness Plan
+
+### Audit Progress
+
+- Inspected the document RAG harness, corpus manifest schema, corpus README, `.gitignore`, Makefile, README, architecture docs, case study, evidence ledger, and existing worklog entries.
+- Found and restored an accidental local corpus README rename from `benchmarks/corpora/README_corpora.md` back to the tracked `benchmarks/corpora/README.md`; no content change was needed.
+- Current evidence language remains bounded: synthetic/offline retrieval evidence exists, the real-service harness exists, and no real public PDF/Pinecone result is claimed.
+- Existing gap: Makefile has no corpus workflow targets yet, and the project has no public source registry, acquisition adapters, preflight checks, synthetic PDF generator, or report promotion tooling.
+- Remaining risk: raw downloaded corpora and local reports must stay ignored unless a specific sanitized artifact is intentionally promoted.
