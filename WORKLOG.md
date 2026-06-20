@@ -273,3 +273,11 @@
 - The synthetic corpus includes legal-style and financial-style PDFs, document/page-level labels, expected answer hints, and citation-required queries.
 - Validation run: `python -m py_compile benchmarks\generate_synthetic_pdf_corpus.py`; temp synthetic generation plus validate-only with file checks; default synthetic generation plus validate-only with file checks; ingest preflight smoke generated an expected service-unavailable failure report when no ingestion service was running.
 - Remaining limitation: synthetic PDFs are not real legal/financial documents and cannot support public-document retrieval-quality claims.
+
+### Report Promotion Tooling Progress
+
+- Added `benchmarks/promote_document_rag_report.py` to convert local JSON reports into sanitized public Markdown summaries and optional sanitized JSON summaries.
+- The promotion tool redacts local paths, removes content-bearing fields such as raw responses, requests, answers, contexts, document/chunk text previews, and removes query text unless explicitly allowed.
+- The tool refuses `private_local` reports unless `--allow-private-summary` is passed, while preserving metrics, corpus mode, service names without secrets, limitations, unsupported claims, and sanitization metadata.
+- Validation run: `python -m py_compile benchmarks\promote_document_rag_report.py`; promoted a synthetic validate-only report to temp Markdown/JSON; verified private-local report promotion is refused without explicit allow flag.
+- Remaining limitation: report promotion is a review aid, not evidence that a run is public-safe or methodologically strong without human review.
