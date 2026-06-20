@@ -183,3 +183,12 @@
 - Service URLs, tenant ID, API key, and bearer token are provided by CLI arguments or environment variables; no secrets are hardcoded.
 - Validation run: `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\example_manifest.json --skip-file-check --output-dir $env:TEMP\document-rag-eval --run-id smoke`.
 - Ingestion was not executed because no local PDFs or live ingestion service are committed with the repository.
+
+### Pinecone Retrieval Evaluation Mode Progress
+
+- Extended `benchmarks/e2e_document_rag_eval.py` with `retrieve` mode for local real-service retrieval evaluation against a configured Pinecone index and namespace.
+- Retrieval mode loads the same sentence-transformer embedding model family, queries Pinecone directly, applies the existing BM25 hybrid reranker over vector candidates, and computes Recall@1, Recall@3, Recall@5, MRR, and nDCG@5.
+- Query labels can be evaluated at chunk, page, or document granularity. Ingestion run artifacts can map manifest document IDs to service document IDs.
+- Reports include per-query top results, category metrics, label granularity counts, top-5 misses, and candidate-pool miss counts.
+- Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; `validate-only` smoke; expected missing-Pinecone-key retrieve failure.
+- Retrieval was not executed against Pinecone because no live Pinecone credentials/index are committed with the repository.

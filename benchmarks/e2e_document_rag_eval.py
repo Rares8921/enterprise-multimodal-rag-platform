@@ -1,13 +1,17 @@
 import argparse
+import importlib.util
 import json
+import math
 import mimetypes
 import os
 import platform
 import subprocess
 import sys
 import time
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import mean
 from typing import Any
 
 import httpx
@@ -23,8 +27,21 @@ from benchmarks.corpus_manifest import LoadedCorpus, format_corpus_summary, load
 DEFAULT_MANIFEST = REPO_ROOT / "benchmarks" / "corpora" / "example_manifest.json"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "benchmarks" / "corpora" / "results"
 DEFAULT_PDF_ROOT = REPO_ROOT / "benchmarks" / "corpora" / "local_pdfs"
+HYBRID_MODULE_PATH = REPO_ROOT / "services" / "inference-api" / "utils" / "hybrid_retrieval.py"
 INGESTION_SUPPORTED_DOC_TYPES = {"legal_contract", "financial_report"}
 TERMINAL_STATUSES = {"ocr_complete", "embedding_complete", "indexed", "completed", "failed"}
+METRIC_KEYS = ["recall@1", "recall@3", "recall@5", "mrr", "ndcg@5"]
+
+def _load_hybrid_module():
+    spec = importlib.util.spec_from_file_location("document_rag_eval_hybrid_utils", HYBRID_MODULE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["document_rag_eval_hybrid_utils"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+hybrid_utils = _load_hybrid_module()
+hybrid_rerank = hybrid_utils.hybrid_rerank
 
 
 def get_git_commit() -> str:
@@ -61,13 +78,16 @@ def build_base_report(args: argparse.Namespace, loaded: LoadedCorpus) -> dict[st
         "services": {
             "ingestion_url": args.ingestion_url if args.mode == "ingest" else None,
             "status_url": args.status_url if args.mode == "ingest" else None,
+            "pinecone_index": args.pinecone_index if args.mode == "retrieve" else None,
+            "pinecone_namespace": _pinecone_namespace(args) if args.mode == "retrieve" else None,
+            "embedding_model": args.embedding_model if args.mode == "retrieve" else None,
             "tenant_id": args.tenant_id,
         },
         "limitations": [
             "This harness runs against local or explicitly configured services; it is not production evidence.",
             "Raw PDFs are expected to live in an ignored local directory and are not committed by default.",
             "Manifest labels may be incomplete until real indexing produces page or chunk labels.",
-            "Ingestion results do not prove retrieval quality, legal correctness, financial correctness, QPS, uptime, or cost savings.",
+            "Ingestion and retrieval results do not prove legal correctness, financial correctness, QPS, uptime, or cost savings.",
         ],
     }
 
@@ -136,6 +156,68 @@ def ingest(args: argparse.Namespace) -> dict[str, Any]:
     return report
 
 
+
+def retrieve(args: argparse.Namespace) -> dict[str, Any]:
+    loaded = load_corpus_manifest(
+        args.manifest,
+        pdf_root=args.pdf_root,
+        require_files=not args.skip_file_check,
+    )
+    report = build_base_report(args, loaded)
+    ingestion_mapping = _load_ingestion_mapping(args.ingestion_run) if args.ingestion_run else {}
+    index = _load_pinecone_index(args)
+    model = _load_embedding_model(args.embedding_model)
+    namespace = _pinecone_namespace(args)
+
+    rows: list[dict[str, Any]] = []
+    for query in loaded.manifest.queries:
+        vector = model.encode(query.query, convert_to_numpy=True, normalize_embeddings=True)
+        raw_results = index.query(
+            vector=vector.tolist() if hasattr(vector, "tolist") else vector,
+            top_k=args.retrieval_candidate_pool,
+            namespace=namespace,
+            include_metadata=True,
+        )
+        matches = _matches_from_pinecone_response(raw_results)
+        reranked = hybrid_rerank(
+            query.query,
+            matches,
+            vector_weight=args.vector_weight,
+            bm25_weight=args.bm25_weight,
+        )
+        rows.append(_evaluate_retrieval_query(query, reranked, ingestion_mapping, args.top_k))
+
+    report["retrieval"] = {
+        "mode": "pinecone_real_service",
+        "strategy": "pinecone_vector_candidates_plus_bm25_hybrid_rerank",
+        "top_k": args.top_k,
+        "candidate_pool_size": args.retrieval_candidate_pool,
+        "vector_weight": args.vector_weight,
+        "bm25_weight": args.bm25_weight,
+        "ingestion_run": str(args.ingestion_run) if args.ingestion_run else None,
+        "overall": _average_metrics(rows),
+        "by_category": _category_metrics(rows),
+        "label_granularity_counts": dict(Counter(row["label_granularity"] for row in rows)),
+        "candidate_pool_miss_count": sum(1 for row in rows if not row["candidate_pool_contains_relevant"]),
+        "missed_queries_top5": [
+            {
+                "query_id": row["query_id"],
+                "category": row["category"],
+                "label_granularity": row["label_granularity"],
+                "target_document_ids": row["target_document_ids"],
+                "top_results": row["top_results"],
+            }
+            for row in rows
+            if row["metrics"]["recall@5"] == 0.0
+        ],
+        "queries": rows,
+    }
+    report["limitations"].extend([
+        "Retrieval mode requires a live Pinecone index populated by the ingestion/OCR/layout/embedding pipeline.",
+        "Document-level labels are weaker than page-level or chunk-level labels; metric interpretation depends on manifest label granularity.",
+        "This is local real-service evidence only and must not be described as production retrieval quality.",
+    ])
+    return report
 def write_json_report(report: dict[str, Any], output_dir: Path, run_id: str | None) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -144,6 +226,28 @@ def write_json_report(report: dict[str, Any], output_dir: Path, run_id: str | No
     return path
 
 
+
+def recall_at_k(ranked_relevance: list[bool], relevant_count: int, k: int) -> float:
+    if relevant_count <= 0:
+        return 0.0
+    return min(sum(1 for item in ranked_relevance[:k] if item), relevant_count) / relevant_count
+
+
+def reciprocal_rank(ranked_relevance: list[bool]) -> float:
+    for rank, is_relevant in enumerate(ranked_relevance, start=1):
+        if is_relevant:
+            return 1.0 / rank
+    return 0.0
+
+
+def ndcg_at_k(ranked_relevance: list[bool], relevant_count: int, k: int) -> float:
+    dcg = 0.0
+    for rank, is_relevant in enumerate(ranked_relevance[:k], start=1):
+        if is_relevant:
+            dcg += 1.0 / math.log2(rank + 1)
+    ideal_hits = min(relevant_count, k)
+    ideal_dcg = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_hits + 1))
+    return dcg / ideal_dcg if ideal_dcg else 0.0
 def _upload_document(
     client: httpx.Client,
     args: argparse.Namespace,
@@ -240,6 +344,174 @@ def _poll_document_status(
     return polls
 
 
+
+def _load_embedding_model(model_name: str):
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError as exc:
+        raise RuntimeError("Retrieval mode requires sentence-transformers to be installed") from exc
+    return SentenceTransformer(model_name, device="cpu")
+
+
+def _load_pinecone_index(args: argparse.Namespace):
+    if not args.pinecone_api_key:
+        raise RuntimeError("Retrieval mode requires PINECONE_API_KEY or --pinecone-api-key")
+    if not args.pinecone_index:
+        raise RuntimeError("Retrieval mode requires PINECONE_INDEX or --pinecone-index")
+    try:
+        from pinecone import Pinecone
+    except ImportError as exc:
+        raise RuntimeError("Retrieval mode requires pinecone to be installed") from exc
+    return Pinecone(api_key=args.pinecone_api_key).Index(args.pinecone_index)
+
+
+def _load_ingestion_mapping(path: Path) -> dict[str, str]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    mapping: dict[str, str] = {}
+    for row in payload.get("ingestion", {}).get("documents", []):
+        manifest_id = row.get("manifest_document_id")
+        service_id = row.get("service_document_id")
+        if manifest_id and service_id:
+            mapping[manifest_id] = service_id
+    return mapping
+
+
+def _matches_from_pinecone_response(response: Any) -> list[dict[str, Any]]:
+    if isinstance(response, dict):
+        return list(response.get("matches", []))
+    matches = getattr(response, "matches", [])
+    normalized: list[dict[str, Any]] = []
+    for match in matches:
+        if isinstance(match, dict):
+            normalized.append(match)
+        else:
+            normalized.append({
+                "id": getattr(match, "id", None),
+                "score": getattr(match, "score", 0.0),
+                "metadata": getattr(match, "metadata", {}) or {},
+            })
+    return normalized
+
+
+def _evaluate_retrieval_query(
+    query: Any,
+    matches: list[dict[str, Any]],
+    ingestion_mapping: dict[str, str],
+    top_k: int,
+) -> dict[str, Any]:
+    target_document_ids = set(query.target_document_ids)
+    mapped_target_ids = {ingestion_mapping.get(document_id, document_id) for document_id in target_document_ids}
+    relevant_pages = set(query.relevant_pages)
+    relevant_chunk_ids = {str(chunk_id) for chunk_id in query.relevant_chunk_ids}
+    label_granularity = _label_granularity(query)
+    relevant_count = _relevant_count(query)
+
+    all_results = []
+    for rank, match in enumerate(matches, start=1):
+        metadata = match.get("metadata") or {}
+        result = {
+            "rank": rank,
+            "id": match.get("id"),
+            "score": match.get("hybrid_score", match.get("score", 0.0)),
+            "vector_score": match.get("vector_score", match.get("score", 0.0)),
+            "bm25_score": match.get("bm25_score", 0.0),
+            "doc_id": metadata.get("doc_id"),
+            "manifest_document_id": metadata.get("manifest_document_id"),
+            "filename": metadata.get("filename"),
+            "page": metadata.get("page"),
+            "chunk_id": metadata.get("chunk_id"),
+            "text_preview": (metadata.get("text") or "")[:240],
+        }
+        result["is_relevant"] = _is_relevant_result(
+            result,
+            target_document_ids,
+            mapped_target_ids,
+            relevant_pages,
+            relevant_chunk_ids,
+            label_granularity,
+        )
+        all_results.append(result)
+
+    top_results = all_results[:top_k]
+    ranked_relevance = [result["is_relevant"] for result in top_results]
+    metrics = {
+        "recall@1": recall_at_k(ranked_relevance, relevant_count, 1),
+        "recall@3": recall_at_k(ranked_relevance, relevant_count, 3),
+        "recall@5": recall_at_k(ranked_relevance, relevant_count, 5),
+        "mrr": reciprocal_rank(ranked_relevance),
+        "ndcg@5": ndcg_at_k(ranked_relevance, relevant_count, 5),
+    }
+    return {
+        "query_id": query.query_id,
+        "query": query.query,
+        "category": query.category,
+        "target_document_ids": query.target_document_ids,
+        "mapped_target_document_ids": sorted(mapped_target_ids),
+        "relevant_pages": query.relevant_pages,
+        "relevant_chunk_ids": query.relevant_chunk_ids,
+        "label_granularity": label_granularity,
+        "candidate_pool_contains_relevant": any(result["is_relevant"] for result in all_results),
+        "metrics": metrics,
+        "top_results": top_results,
+    }
+def _label_granularity(query: Any) -> str:
+    if query.relevant_chunk_ids:
+        return "chunk"
+    if query.relevant_pages:
+        return "page"
+    return "document"
+
+
+def _relevant_count(query: Any) -> int:
+    if query.relevant_chunk_ids:
+        return len(set(query.relevant_chunk_ids))
+    if query.relevant_pages:
+        return max(1, len(set(query.relevant_pages)))
+    return max(1, len(set(query.target_document_ids)))
+
+
+def _is_relevant_result(
+    result: dict[str, Any],
+    target_document_ids: set[str],
+    mapped_target_ids: set[str],
+    relevant_pages: set[int],
+    relevant_chunk_ids: set[str],
+    label_granularity: str,
+) -> bool:
+    doc_candidates = {
+        str(value)
+        for value in [result.get("doc_id"), result.get("manifest_document_id"), result.get("filename")]
+        if value is not None
+    }
+    doc_match = bool(doc_candidates & (target_document_ids | mapped_target_ids))
+    if label_granularity == "document":
+        return doc_match
+    if label_granularity == "page":
+        return doc_match and result.get("page") in relevant_pages
+    chunk_candidates = {str(value) for value in [result.get("id"), result.get("chunk_id")] if value is not None}
+    return bool(chunk_candidates & relevant_chunk_ids)
+
+
+def _average_metrics(rows: list[dict[str, Any]]) -> dict[str, float]:
+    if not rows:
+        return {key: 0.0 for key in METRIC_KEYS}
+    return {
+        key: round(mean(row["metrics"][key] for row in rows), 6)
+        for key in METRIC_KEYS
+    }
+
+
+def _category_metrics(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[row["category"]].append(row)
+    return {
+        category: {
+            "query_count": len(category_rows),
+            "metrics": _average_metrics(category_rows),
+        }
+        for category, category_rows in sorted(grouped.items())
+    }
 def _auth_headers(args: argparse.Namespace) -> dict[str, str]:
     headers: dict[str, str] = {}
     if args.api_key:
@@ -256,9 +528,14 @@ def _response_text(response: httpx.Response) -> str:
         return response.text
 
 
+
+def _pinecone_namespace(args: argparse.Namespace) -> str:
+    return args.pinecone_namespace or args.tenant_id
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate document RAG over a curated PDF corpus.")
-    parser.add_argument("mode", choices=["validate-only", "ingest"])
+    parser.add_argument("mode", choices=["validate-only", "ingest", "retrieve"])
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--pdf-root", type=Path, default=DEFAULT_PDF_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
@@ -273,17 +550,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-timeout-seconds", type=float, default=300.0)
     parser.add_argument("--poll-interval-seconds", type=float, default=5.0)
     parser.add_argument("--request-timeout-seconds", type=float, default=120.0)
+    parser.add_argument("--pinecone-api-key", default=os.getenv("PINECONE_API_KEY"))
+    parser.add_argument("--pinecone-index", default=os.getenv("PINECONE_INDEX"))
+    parser.add_argument("--pinecone-namespace", default=os.getenv("PINECONE_NAMESPACE"))
+    parser.add_argument("--embedding-model", default=os.getenv("DOCUMENT_RAG_EVAL_EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2"))
+    parser.add_argument("--ingestion-run", type=Path, default=None)
+    parser.add_argument("--retrieval-candidate-pool", type=int, default=25)
+    parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--vector-weight", type=float, default=0.7)
+    parser.add_argument("--bm25-weight", type=float, default=0.3)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.mode == "validate-only":
-        report = validate_only(args)
-    elif args.mode == "ingest":
-        report = ingest(args)
-    else:
-        raise ValueError(f"Unsupported mode: {args.mode}")
+    try:
+        if args.mode == "validate-only":
+            report = validate_only(args)
+        elif args.mode == "ingest":
+            report = ingest(args)
+        elif args.mode == "retrieve":
+            report = retrieve(args)
+        else:
+            raise ValueError(f"Unsupported mode: {args.mode}")
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     path = write_json_report(report, args.output_dir, args.run_id)
     print(f"Wrote {path}")
