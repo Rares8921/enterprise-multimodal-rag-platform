@@ -240,3 +240,11 @@
 - The adapter preserves CUAD attribution/source metadata in generated manifests and keeps `allowed_to_commit=false` for raw contract PDFs by default.
 - Validation run: `python -m py_compile benchmarks\corpus_sources\cuad.py benchmarks\acquire_public_corpus.py`; no-network CUAD smoke with mocked metadata; validate-only smoke against the generated temp manifest.
 - Remaining limitation: no CUAD files were downloaded or committed; real CUAD usage still requires local dataset acquisition and license/terms review.
+
+### SEC EDGAR Acquisition Adapter Progress
+
+- Added `benchmarks/corpus_sources/sec_edgar.py` for SEC company metadata, recent filing metadata parsing/fetching, manifest generation, optional primary document download, source format labeling, and conservative request delays.
+- Added `benchmarks/corpora/sec_edgar_sample_companies.json` with a small curated ticker/CIK list for AAPL, MSFT, AMZN, NVDA, JPM, and XOM.
+- Extended `benchmarks/acquire_public_corpus.py` with a `sec-edgar` subcommand that supports no-network `--filings-json` mode and explicit SEC network mode through `--fetch-metadata`.
+- Validation run: `python -m py_compile benchmarks\corpus_sources\sec_edgar.py benchmarks\acquire_public_corpus.py`; no-network SEC smoke with mocked filing metadata; expected missing-`SEC_USER_AGENT` failure for network fetch mode.
+- Remaining limitation: no SEC filings were downloaded or committed; HTML filing manifests require the public manifest schema integration step before `validate-only` can accept non-PDF source files.
