@@ -159,3 +159,12 @@
 ### Retrieval Benchmark Documentation Progress
 
 - Updated README, architecture docs, case study, and `PROJECT_EVIDENCE.md` to document the retrieval benchmark methodology, exact checked-in results, supported CV claim, and unsupported production-quality claims.
+
+## Document RAG Corpus Evaluation Plan
+
+### Corpus Structure And Manifest Progress
+
+- Added a curated corpus workspace under `benchmarks/corpora/` with ignored `local_pdfs/` and `results/` directories for private PDFs and generated local reports.
+- Added `benchmarks/corpora/example_manifest.json` to document the manifest shape without committing raw PDFs.
+- Added `benchmarks/corpus_manifest.py` with schema-level validation for corpus identity, corpus mode, document metadata, relative filenames, query labels, relevant pages/chunks, expected answer hints, and citation requirements.
+- Current supported claim remains harness-only: the project can define and validate curated PDF corpus manifests. No PDF run, Pinecone retrieval result, answer quality, production usage, or legal/financial correctness is claimed yet.

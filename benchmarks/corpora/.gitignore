@@ -1,0 +1,6 @@
+/local_pdfs/*
+!/local_pdfs/.gitkeep
+
+/results/*
+!/results/.gitkeep
+

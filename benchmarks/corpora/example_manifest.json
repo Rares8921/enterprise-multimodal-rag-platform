@@ -1,0 +1,47 @@
+{
+  "corpus_id": "example_private_contracts_001",
+  "corpus_name": "Example Private Contract Corpus",
+  "mode": "private_local",
+  "documents": [
+    {
+      "document_id": "example_msa_001",
+      "filename": "example_master_services_agreement.pdf",
+      "doc_type": "legal_contract",
+      "source_type": "local_private_pdf",
+      "source_note": "Placeholder example. Replace with a local PDF that you are allowed to evaluate.",
+      "page_count": null,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "example_annual_report_001",
+      "filename": "example_annual_report.pdf",
+      "doc_type": "financial_report",
+      "source_type": "local_private_pdf",
+      "source_note": "Placeholder example. Replace with a local PDF that you are allowed to evaluate.",
+      "page_count": null,
+      "allowed_to_commit": false
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "q001",
+      "query": "What termination notice period does the agreement require?",
+      "category": "legal_clause",
+      "target_document_ids": ["example_msa_001"],
+      "relevant_pages": [],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": ["termination", "notice"],
+      "citation_required": true
+    },
+    {
+      "query_id": "q002",
+      "query": "What revenue figure is reported for the latest fiscal year?",
+      "category": "financial_numeric",
+      "target_document_ids": ["example_annual_report_001"],
+      "relevant_pages": [],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": ["revenue", "fiscal year"],
+      "citation_required": true
+    }
+  ]
+}

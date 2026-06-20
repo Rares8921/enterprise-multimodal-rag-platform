@@ -1,0 +1,221 @@
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+VALID_CORPUS_MODES = {"public", "synthetic", "private_local"}
+VALID_DOCUMENT_TYPES = {"legal_contract", "financial_report", "other"}
+
+
+class ManifestValidationError(ValueError):
+    """Raised when a corpus manifest does not match the expected schema."""
+
+
+@dataclass(frozen=True)
+class CorpusDocument:
+    document_id: str
+    filename: str
+    doc_type: str
+    source_type: str
+    source_note: str
+    page_count: int | None
+    allowed_to_commit: bool
+
+
+@dataclass(frozen=True)
+class CorpusQuery:
+    query_id: str
+    query: str
+    category: str
+    target_document_ids: list[str]
+    relevant_pages: list[int]
+    relevant_chunk_ids: list[str]
+    expected_answer_hints: list[str]
+    citation_required: bool
+
+
+@dataclass(frozen=True)
+class CorpusManifest:
+    corpus_id: str
+    corpus_name: str
+    mode: str
+    documents: list[CorpusDocument]
+    queries: list[CorpusQuery]
+
+    @property
+    def document_ids(self) -> set[str]:
+        return {document.document_id for document in self.documents}
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "corpus_id": self.corpus_id,
+            "corpus_name": self.corpus_name,
+            "mode": self.mode,
+            "document_count": len(self.documents),
+            "query_count": len(self.queries),
+            "doc_types": sorted({document.doc_type for document in self.documents}),
+            "query_categories": sorted({query.category for query in self.queries}),
+        }
+
+
+def read_manifest_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def validate_manifest_payload(payload: dict[str, Any]) -> CorpusManifest:
+    required_root = {"corpus_id", "corpus_name", "mode", "documents", "queries"}
+    _require_keys(payload, required_root, "manifest")
+
+    corpus_id = _required_string(payload, "corpus_id", "manifest")
+    corpus_name = _required_string(payload, "corpus_name", "manifest")
+    mode = _required_string(payload, "mode", "manifest")
+    if mode not in VALID_CORPUS_MODES:
+        raise ManifestValidationError(f"manifest.mode must be one of {sorted(VALID_CORPUS_MODES)}")
+
+    raw_documents = payload["documents"]
+    raw_queries = payload["queries"]
+    if not isinstance(raw_documents, list) or not raw_documents:
+        raise ManifestValidationError("manifest.documents must be a non-empty list")
+    if not isinstance(raw_queries, list):
+        raise ManifestValidationError("manifest.queries must be a list")
+
+    documents = [_parse_document(item, index) for index, item in enumerate(raw_documents)]
+    document_ids = [document.document_id for document in documents]
+    duplicates = _duplicates(document_ids)
+    if duplicates:
+        raise ManifestValidationError(f"Duplicate document_id values: {duplicates}")
+
+    queries = [_parse_query(item, index, set(document_ids)) for index, item in enumerate(raw_queries)]
+    query_ids = [query.query_id for query in queries]
+    duplicate_queries = _duplicates(query_ids)
+    if duplicate_queries:
+        raise ManifestValidationError(f"Duplicate query_id values: {duplicate_queries}")
+
+    return CorpusManifest(
+        corpus_id=corpus_id,
+        corpus_name=corpus_name,
+        mode=mode,
+        documents=documents,
+        queries=queries,
+    )
+
+
+def load_manifest_schema(path: Path) -> CorpusManifest:
+    return validate_manifest_payload(read_manifest_json(path))
+
+
+def _parse_document(raw: dict[str, Any], index: int) -> CorpusDocument:
+    context = f"documents[{index}]"
+    required = {
+        "document_id",
+        "filename",
+        "doc_type",
+        "source_type",
+        "source_note",
+        "allowed_to_commit",
+    }
+    _require_keys(raw, required, context)
+
+    document_id = _required_string(raw, "document_id", context)
+    filename = _required_string(raw, "filename", context)
+    _validate_relative_filename(filename, context)
+
+    doc_type = _required_string(raw, "doc_type", context)
+    if doc_type not in VALID_DOCUMENT_TYPES:
+        raise ManifestValidationError(f"{context}.doc_type must be one of {sorted(VALID_DOCUMENT_TYPES)}")
+
+    page_count = raw.get("page_count")
+    if page_count is not None and (not isinstance(page_count, int) or page_count <= 0):
+        raise ManifestValidationError(f"{context}.page_count must be a positive integer when provided")
+
+    allowed_to_commit = raw["allowed_to_commit"]
+    if not isinstance(allowed_to_commit, bool):
+        raise ManifestValidationError(f"{context}.allowed_to_commit must be a boolean")
+
+    return CorpusDocument(
+        document_id=document_id,
+        filename=filename,
+        doc_type=doc_type,
+        source_type=_required_string(raw, "source_type", context),
+        source_note=_required_string(raw, "source_note", context),
+        page_count=page_count,
+        allowed_to_commit=allowed_to_commit,
+    )
+
+
+def _parse_query(raw: dict[str, Any], index: int, document_ids: set[str]) -> CorpusQuery:
+    context = f"queries[{index}]"
+    required = {"query_id", "query", "category", "target_document_ids", "citation_required"}
+    _require_keys(raw, required, context)
+
+    target_document_ids = _string_list(raw["target_document_ids"], f"{context}.target_document_ids")
+    if not target_document_ids:
+        raise ManifestValidationError(f"{context}.target_document_ids must not be empty")
+
+    missing_targets = sorted(set(target_document_ids) - document_ids)
+    if missing_targets:
+        raise ManifestValidationError(f"{context}.target_document_ids reference unknown documents: {missing_targets}")
+
+    citation_required = raw["citation_required"]
+    if not isinstance(citation_required, bool):
+        raise ManifestValidationError(f"{context}.citation_required must be a boolean")
+
+    return CorpusQuery(
+        query_id=_required_string(raw, "query_id", context),
+        query=_required_string(raw, "query", context),
+        category=_required_string(raw, "category", context),
+        target_document_ids=target_document_ids,
+        relevant_pages=_int_list(raw.get("relevant_pages", []), f"{context}.relevant_pages"),
+        relevant_chunk_ids=_string_list(raw.get("relevant_chunk_ids", []), f"{context}.relevant_chunk_ids"),
+        expected_answer_hints=_string_list(raw.get("expected_answer_hints", []), f"{context}.expected_answer_hints"),
+        citation_required=citation_required,
+    )
+
+
+def _require_keys(raw: dict[str, Any], required: set[str], context: str) -> None:
+    if not isinstance(raw, dict):
+        raise ManifestValidationError(f"{context} must be an object")
+    missing = sorted(required - set(raw))
+    if missing:
+        raise ManifestValidationError(f"{context} missing required keys: {missing}")
+
+
+def _required_string(raw: dict[str, Any], key: str, context: str) -> str:
+    value = raw.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ManifestValidationError(f"{context}.{key} must be a non-empty string")
+    return value.strip()
+
+
+def _string_list(value: Any, context: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ManifestValidationError(f"{context} must be a list")
+    if any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ManifestValidationError(f"{context} must contain only non-empty strings")
+    return [item.strip() for item in value]
+
+
+def _int_list(value: Any, context: str) -> list[int]:
+    if not isinstance(value, list):
+        raise ManifestValidationError(f"{context} must be a list")
+    if any(not isinstance(item, int) or item <= 0 for item in value):
+        raise ManifestValidationError(f"{context} must contain only positive integers")
+    return value
+
+
+def _validate_relative_filename(filename: str, context: str) -> None:
+    path = Path(filename)
+    if path.is_absolute() or ".." in path.parts:
+        raise ManifestValidationError(f"{context}.filename must be a relative path inside the local PDF directory")
+
+
+def _duplicates(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    return sorted(duplicates)
