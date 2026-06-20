@@ -90,6 +90,16 @@ def build_base_report(args: argparse.Namespace, loaded: LoadedCorpus) -> dict[st
             "Manifest labels may be incomplete until real indexing produces page or chunk labels.",
             "Ingestion and retrieval results do not prove legal correctness, financial correctness, QPS, uptime, or cost savings.",
         ],
+        "unsupported_claims": [
+            "production usage",
+            "customer data evaluation",
+            "real users",
+            "production legal or financial correctness",
+            "production retrieval quality",
+            "uptime, QPS, SLA, or incident recovery",
+            "real cost savings",
+            "provider accuracy",
+        ],
     }
 
 
@@ -265,6 +275,156 @@ def write_json_report(report: dict[str, Any], output_dir: Path, run_id: str | No
 
 
 
+
+def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
+    corpus = report["corpus"]
+    lines = [
+        "# Document RAG Evaluation Report",
+        "",
+        f"Mode: `{report['mode']}`",
+        f"Timestamp UTC: `{report['timestamp_utc']}`",
+        f"Git commit: `{report['git_commit']}`",
+        f"Command: `{report['command']}`",
+        f"Manifest: `{corpus['manifest_path']}`",
+        f"PDF root: `{corpus['pdf_root']}`",
+        f"Corpus: `{corpus['corpus_name']}` (`{corpus['corpus_id']}`)",
+        f"Corpus mode: `{corpus['mode']}`",
+        f"Documents: `{corpus['document_count']}`",
+        f"Queries: `{corpus['query_count']}`",
+        "",
+        "## Services",
+        "",
+    ]
+    for key, value in report.get("services", {}).items():
+        if value is not None:
+            lines.append(f"- `{key}`: `{value}`")
+    if all(value is None for value in report.get("services", {}).values()):
+        lines.append("- No service calls were made in this mode.")
+
+    if "validation" in report:
+        lines.extend([
+            "",
+            "## Validation",
+            "",
+            f"Status: `{report['validation']['status']}`",
+            f"File check: `{report['validation']['file_check']}`",
+        ])
+
+    if "ingestion" in report:
+        ingestion = report["ingestion"]
+        lines.extend([
+            "",
+            "## Ingestion",
+            "",
+            f"Documents: `{ingestion['document_count']}`",
+            f"Successes: `{ingestion['success_count']}`",
+            f"Failures: `{ingestion['failure_count']}`",
+            f"Skipped: `{ingestion['skipped_count']}`",
+        ])
+
+    if "retrieval" in report:
+        retrieval = report["retrieval"]
+        metrics = retrieval["overall"]
+        lines.extend([
+            "",
+            "## Retrieval",
+            "",
+            f"Mode: `{retrieval['mode']}`",
+            f"Strategy: `{retrieval['strategy']}`",
+            f"Candidate pool size: `{retrieval['candidate_pool_size']}`",
+            f"Top K: `{retrieval['top_k']}`",
+            f"Candidate pool misses: `{retrieval['candidate_pool_miss_count']}`",
+            "",
+            "| Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |",
+            "|---:|---:|---:|---:|---:|",
+            f"| {metrics['recall@1']:.4f} | {metrics['recall@3']:.4f} | {metrics['recall@5']:.4f} | {metrics['mrr']:.4f} | {metrics['ndcg@5']:.4f} |",
+        ])
+
+    if "answer" in report:
+        answer_payload = report["answer"]
+        lines.extend([
+            "",
+            "## Answer Proxy",
+            "",
+            f"Queries: `{answer_payload['query_count']}`",
+            f"Failures: `{answer_payload['failure_count']}`",
+            f"Non-empty answer rate: `{answer_payload['non_empty_answer_rate']}`",
+            f"Citation presence rate for required citations: `{answer_payload['citation_presence_rate_required']}`",
+            f"Average expected-hint overlap: `{answer_payload['average_expected_hint_overlap']}`",
+            f"Estimated tokens used: `{answer_payload['estimated_tokens_used']}`",
+        ])
+
+    query_rows = _report_query_rows(report)
+    if query_rows:
+        lines.extend([
+            "",
+            "## Per-Query Results",
+            "",
+            "| Query | Category | Status | Metric Summary |",
+            "|---|---|---|---|",
+        ])
+        for row in query_rows:
+            lines.append(f"| `{row['query_id']}` | {row['category']} | {row['status']} | {row['summary']} |")
+
+    lines.extend([
+        "",
+        "## Limitations",
+        "",
+    ])
+    lines.extend(f"- {item}" for item in report.get("limitations", []))
+    lines.extend([
+        "",
+        "## Unsupported Claims",
+        "",
+    ])
+    lines.extend(f"- {item}" for item in report.get("unsupported_claims", []))
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_csv_report(path: Path, report: dict[str, Any]) -> None:
+    import csv
+
+    rows = _report_query_rows(report)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["query_id", "category", "status", "summary"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _report_query_rows(report: dict[str, Any]) -> list[dict[str, str]]:
+    if "retrieval" in report:
+        rows = []
+        for query in report["retrieval"].get("queries", []):
+            metrics = query["metrics"]
+            rows.append({
+                "query_id": query["query_id"],
+                "category": query["category"],
+                "status": query["label_granularity"],
+                "summary": f"R@5={metrics['recall@5']:.4f}; MRR={metrics['mrr']:.4f}; nDCG@5={metrics['ndcg@5']:.4f}",
+            })
+        return rows
+    if "answer" in report:
+        return [
+            {
+                "query_id": query["query_id"],
+                "category": query["category"],
+                "status": query["status"],
+                "summary": f"non_empty={query.get('answer_non_empty')}; citations={query.get('citation_present')}; hint_overlap={query.get('expected_hint_overlap')}",
+            }
+            for query in report["answer"].get("queries", [])
+        ]
+    if "ingestion" in report:
+        return [
+            {
+                "query_id": row["manifest_document_id"],
+                "category": row.get("filename", ""),
+                "status": row["status"],
+                "summary": row.get("service_document_id") or row.get("error", ""),
+            }
+            for row in report["ingestion"].get("documents", [])
+        ]
+    return []
 def recall_at_k(ranked_relevance: list[bool], relevant_count: int, k: int) -> float:
     if relevant_count <= 0:
         return 0.0
@@ -714,6 +874,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--answer-top-k", type=int, default=5)
     parser.add_argument("--model-choice", default="auto")
     parser.add_argument("--agent", default=None)
+    parser.add_argument("--write-csv", action="store_true")
     return parser.parse_args()
 
 
@@ -734,8 +895,15 @@ def main() -> None:
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 
-    path = write_json_report(report, args.output_dir, args.run_id)
-    print(f"Wrote {path}")
+    json_path = write_json_report(report, args.output_dir, args.run_id)
+    markdown_path = json_path.with_suffix(".md")
+    write_markdown_report(markdown_path, report)
+    print(f"Wrote {json_path}")
+    print(f"Wrote {markdown_path}")
+    if args.write_csv:
+        csv_path = json_path.with_suffix(".csv")
+        write_csv_report(csv_path, report)
+        print(f"Wrote {csv_path}")
 
     if args.mode == "ingest" and report.get("ingestion", {}).get("failure_count", 0):
         raise SystemExit(2)

@@ -200,3 +200,10 @@
 - The mode supports ingestion-run mappings so manifest document IDs can be translated to service document IDs for filtered query calls.
 - Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; answer smoke against `http://127.0.0.1:9` wrote a report with 2 expected service-unavailable failures and no provider calls.
 - Answer proxy metrics remain lightweight and must not be described as semantic correctness, legal correctness, financial correctness, or provider accuracy.
+
+### Document RAG Report Generation Progress
+
+- Extended `benchmarks/e2e_document_rag_eval.py` so each run writes JSON and Markdown reports by default, with optional CSV output via `--write-csv`.
+- Reports include command, timestamp, git commit, environment summary, manifest path, corpus counts, services used without secrets, mode-specific metrics, per-query rows when available, limitations, and unsupported claims.
+- Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; validate-only JSON/Markdown/CSV smoke; answer JSON/Markdown smoke against an unreachable local query endpoint.
+- No checked-in real-service report was generated because no curated PDFs, live services, Pinecone credentials, or provider credentials are committed with the repository.
