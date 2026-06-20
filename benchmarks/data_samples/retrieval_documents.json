@@ -1,0 +1,368 @@
+{
+  "dataset_name": "synthetic_legal_financial_retrieval_chunks",
+  "dataset_type": "synthetic_offline_retrieval_fixture",
+  "description": "Synthetic legal and financial document chunks for deterministic retrieval benchmark tests. No private or production documents are included.",
+  "tenant_id": "tenant_synthetic",
+  "documents": [
+    {
+      "doc_id": "contract_alpha",
+      "filename": "alpha_services_agreement.pdf",
+      "doc_type": "legal_contract",
+      "title": "Alpha Services Agreement",
+      "chunks": [
+        {
+          "chunk_id": "contract_alpha_c01",
+          "page": 1,
+          "section": "Parties",
+          "text": "This Services Agreement is entered into by Alpha Robotics LLC as supplier and Northwind Retail Inc. as customer.",
+          "semantic_terms": ["parties", "supplier", "customer", "agreement", "alpha robotics", "northwind"]
+        },
+        {
+          "chunk_id": "contract_alpha_c02",
+          "page": 2,
+          "section": "Termination",
+          "text": "Either party may terminate for convenience after giving thirty days written notice to the other party.",
+          "semantic_terms": ["termination", "notice", "convenience", "written notice", "thirty days"]
+        },
+        {
+          "chunk_id": "contract_alpha_c03",
+          "page": 3,
+          "section": "Liability Cap",
+          "text": "Aggregate liability is capped at the fees paid during the twelve months preceding the claim, excluding confidentiality breaches.",
+          "semantic_terms": ["liability", "cap", "fees paid", "twelve months", "confidentiality"]
+        },
+        {
+          "chunk_id": "contract_alpha_c04",
+          "page": 4,
+          "section": "Data Retention",
+          "text": "Customer data must be retained for ninety days after termination and then deleted unless a legal hold applies.",
+          "semantic_terms": ["data retention", "ninety days", "termination", "delete data", "legal hold"]
+        }
+      ]
+    },
+    {
+      "doc_id": "contract_beta",
+      "filename": "beta_hosting_msa.pdf",
+      "doc_type": "legal_contract",
+      "title": "Beta Hosting Master Services Agreement",
+      "chunks": [
+        {
+          "chunk_id": "contract_beta_c01",
+          "page": 1,
+          "section": "Service Credits",
+          "text": "If monthly uptime falls below 99.5 percent, the customer may request service credits within ten business days.",
+          "semantic_terms": ["service credits", "uptime", "availability", "99.5 percent", "ten business days"]
+        },
+        {
+          "chunk_id": "contract_beta_c02",
+          "page": 2,
+          "section": "Indemnification",
+          "text": "Vendor will indemnify the customer against third-party intellectual property claims arising from the hosted platform.",
+          "semantic_terms": ["indemnification", "third party claims", "intellectual property", "hosted platform"]
+        },
+        {
+          "chunk_id": "contract_beta_c03",
+          "page": 3,
+          "section": "Governing Law",
+          "text": "The agreement is governed by Delaware law, and disputes must be brought in state or federal courts located in Delaware.",
+          "semantic_terms": ["governing law", "delaware", "jurisdiction", "disputes", "courts"]
+        },
+        {
+          "chunk_id": "contract_beta_c04",
+          "page": 4,
+          "section": "Insurance",
+          "text": "Provider shall maintain cyber liability insurance with a minimum coverage limit of five million dollars.",
+          "semantic_terms": ["insurance", "cyber liability", "coverage limit", "five million"]
+        }
+      ]
+    },
+    {
+      "doc_id": "contract_gamma",
+      "filename": "gamma_data_processing_addendum.pdf",
+      "doc_type": "legal_contract",
+      "title": "Gamma Data Processing Addendum",
+      "chunks": [
+        {
+          "chunk_id": "contract_gamma_c01",
+          "page": 1,
+          "section": "Subprocessors",
+          "text": "Processor must provide at least fifteen days prior notice before appointing a new subprocessor.",
+          "semantic_terms": ["subprocessor", "processor", "prior notice", "fifteen days", "appointment"]
+        },
+        {
+          "chunk_id": "contract_gamma_c02",
+          "page": 2,
+          "section": "Security Incident",
+          "text": "Processor shall notify controller without undue delay after becoming aware of a confirmed security incident.",
+          "semantic_terms": ["security incident", "notify", "controller", "undue delay", "breach"]
+        },
+        {
+          "chunk_id": "contract_gamma_c03",
+          "page": 3,
+          "section": "Deletion",
+          "text": "Upon expiration of services, processor will delete or return personal data according to controller instructions.",
+          "semantic_terms": ["delete data", "return data", "personal data", "controller instructions", "expiration"]
+        },
+        {
+          "chunk_id": "contract_gamma_c04",
+          "page": 4,
+          "section": "Audit Rights",
+          "text": "Controller may review security documentation once per year, subject to confidentiality and reasonable notice.",
+          "semantic_terms": ["audit rights", "security documentation", "annual review", "confidentiality", "reasonable notice"]
+        }
+      ]
+    },
+    {
+      "doc_id": "contract_delta",
+      "filename": "delta_supply_agreement.pdf",
+      "doc_type": "legal_contract",
+      "title": "Delta Supply Agreement",
+      "chunks": [
+        {
+          "chunk_id": "contract_delta_c01",
+          "page": 1,
+          "section": "Delivery",
+          "text": "Supplier must deliver replacement parts within five business days after receiving a confirmed purchase order.",
+          "semantic_terms": ["delivery", "replacement parts", "five business days", "purchase order", "supplier"]
+        },
+        {
+          "chunk_id": "contract_delta_c02",
+          "page": 2,
+          "section": "Force Majeure",
+          "text": "Neither party is liable for delay caused by natural disaster, labor strike, government order, or utility outage.",
+          "semantic_terms": ["force majeure", "delay", "natural disaster", "labor strike", "government order"]
+        },
+        {
+          "chunk_id": "contract_delta_c03",
+          "page": 3,
+          "section": "Warranty",
+          "text": "Products are warranted to conform to specifications for eighteen months from delivery.",
+          "semantic_terms": ["warranty", "specifications", "eighteen months", "delivery", "products"]
+        },
+        {
+          "chunk_id": "contract_delta_c04",
+          "page": 4,
+          "section": "Payment Terms",
+          "text": "Invoices are payable net 45 days from the invoice date unless disputed in good faith.",
+          "semantic_terms": ["payment terms", "invoice", "net 45", "dispute", "good faith"]
+        }
+      ]
+    },
+    {
+      "doc_id": "finance_orion_2024",
+      "filename": "orion_annual_report_2024.pdf",
+      "doc_type": "financial_report",
+      "title": "Orion Annual Report 2024",
+      "chunks": [
+        {
+          "chunk_id": "finance_orion_c01",
+          "page": 5,
+          "section": "Revenue",
+          "text": "Total revenue for fiscal 2024 was 128.4 million dollars, compared with 117.2 million dollars in fiscal 2023.",
+          "semantic_terms": ["revenue", "fiscal 2024", "128.4 million", "fiscal 2023", "year over year"]
+        },
+        {
+          "chunk_id": "finance_orion_c02",
+          "page": 6,
+          "section": "Operating Margin",
+          "text": "Operating margin improved to 14.8 percent due to lower freight expense and increased software mix.",
+          "semantic_terms": ["operating margin", "14.8 percent", "freight expense", "software mix", "profitability"]
+        },
+        {
+          "chunk_id": "finance_orion_c03",
+          "page": 7,
+          "section": "Cash Flow",
+          "text": "Net cash provided by operating activities was 22.6 million dollars, while capital expenditures were 6.1 million dollars.",
+          "semantic_terms": ["cash flow", "operating activities", "22.6 million", "capital expenditures", "6.1 million"]
+        },
+        {
+          "chunk_id": "finance_orion_c04",
+          "page": 8,
+          "section": "Debt",
+          "text": "Long-term debt outstanding was 41.0 million dollars at year end, with no maturities due before 2027.",
+          "semantic_terms": ["debt", "long term debt", "41.0 million", "maturities", "2027"]
+        }
+      ]
+    },
+    {
+      "doc_id": "finance_nova_q4",
+      "filename": "nova_q4_report.pdf",
+      "doc_type": "financial_report",
+      "title": "Nova Q4 Report",
+      "chunks": [
+        {
+          "chunk_id": "finance_nova_c01",
+          "page": 2,
+          "section": "Segment Revenue",
+          "text": "Cloud subscription revenue increased 18 percent, while hardware revenue declined 7 percent during the fourth quarter.",
+          "semantic_terms": ["segment revenue", "cloud subscription", "hardware", "18 percent", "7 percent"]
+        },
+        {
+          "chunk_id": "finance_nova_c02",
+          "page": 3,
+          "section": "Net Income",
+          "text": "Net income was 9.3 million dollars, or 0.42 dollars per diluted share.",
+          "semantic_terms": ["net income", "9.3 million", "diluted share", "0.42", "earnings"]
+        },
+        {
+          "chunk_id": "finance_nova_c03",
+          "page": 4,
+          "section": "Liquidity",
+          "text": "Management reported sufficient liquidity through cash reserves, a revolving credit facility, and positive operating cash flow.",
+          "semantic_terms": ["liquidity", "cash reserves", "credit facility", "operating cash flow", "management"]
+        },
+        {
+          "chunk_id": "finance_nova_c04",
+          "page": 5,
+          "section": "Risk Factors",
+          "text": "Key risks include customer concentration, foreign exchange volatility, supplier disruption, and cybersecurity incidents.",
+          "semantic_terms": ["risk factors", "customer concentration", "foreign exchange", "supplier disruption", "cybersecurity"]
+        }
+      ]
+    },
+    {
+      "doc_id": "finance_helix_10q",
+      "filename": "helix_form_10q.pdf",
+      "doc_type": "financial_report",
+      "title": "Helix Form 10-Q",
+      "chunks": [
+        {
+          "chunk_id": "finance_helix_c01",
+          "page": 4,
+          "section": "Accounts Receivable",
+          "text": "Accounts receivable increased to 31.5 million dollars primarily because several enterprise customers renewed late in the quarter.",
+          "semantic_terms": ["accounts receivable", "31.5 million", "enterprise customers", "renewals", "late quarter"]
+        },
+        {
+          "chunk_id": "finance_helix_c02",
+          "page": 5,
+          "section": "Deferred Revenue",
+          "text": "Deferred revenue was 54.2 million dollars, reflecting prepaid annual support contracts.",
+          "semantic_terms": ["deferred revenue", "54.2 million", "prepaid", "annual support", "contracts"]
+        },
+        {
+          "chunk_id": "finance_helix_c03",
+          "page": 6,
+          "section": "Research Expense",
+          "text": "Research and development expense rose 12 percent because of additional hiring for the analytics platform.",
+          "semantic_terms": ["research and development", "expense", "12 percent", "hiring", "analytics platform"]
+        },
+        {
+          "chunk_id": "finance_helix_c04",
+          "page": 7,
+          "section": "Going Concern",
+          "text": "Management concluded there is no substantial doubt about the company's ability to continue as a going concern.",
+          "semantic_terms": ["going concern", "substantial doubt", "management conclusion", "continue operations"]
+        }
+      ]
+    },
+    {
+      "doc_id": "finance_lyra_2024",
+      "filename": "lyra_financial_statement.pdf",
+      "doc_type": "financial_report",
+      "title": "Lyra Financial Statement",
+      "chunks": [
+        {
+          "chunk_id": "finance_lyra_c01",
+          "page": 3,
+          "section": "Inventory",
+          "text": "Inventory balance decreased to 18.7 million dollars after management wrote down obsolete components.",
+          "semantic_terms": ["inventory", "18.7 million", "write down", "obsolete components", "balance"]
+        },
+        {
+          "chunk_id": "finance_lyra_c02",
+          "page": 4,
+          "section": "Gross Profit",
+          "text": "Gross profit was 44.9 million dollars, representing a gross margin of 38.1 percent.",
+          "semantic_terms": ["gross profit", "44.9 million", "gross margin", "38.1 percent", "profitability"]
+        },
+        {
+          "chunk_id": "finance_lyra_c03",
+          "page": 5,
+          "section": "Contingencies",
+          "text": "The company disclosed a pending warranty claim but did not record a loss contingency.",
+          "semantic_terms": ["contingencies", "warranty claim", "loss contingency", "pending claim", "disclosure"]
+        },
+        {
+          "chunk_id": "finance_lyra_c04",
+          "page": 6,
+          "section": "Capital Lease",
+          "text": "Capital lease obligations total 12.4 million dollars, with scheduled payments through 2029.",
+          "semantic_terms": ["capital lease", "obligations", "12.4 million", "scheduled payments", "2029"]
+        }
+      ]
+    },
+    {
+      "doc_id": "policy_zeta_security",
+      "filename": "zeta_security_policy.pdf",
+      "doc_type": "policy",
+      "title": "Zeta Security Policy",
+      "chunks": [
+        {
+          "chunk_id": "policy_zeta_c01",
+          "page": 1,
+          "section": "Access Review",
+          "text": "Privileged access must be reviewed quarterly by the system owner and the security team.",
+          "semantic_terms": ["access review", "privileged access", "quarterly", "system owner", "security"]
+        },
+        {
+          "chunk_id": "policy_zeta_c02",
+          "page": 2,
+          "section": "Incident Response",
+          "text": "Security incidents are triaged within four hours and escalated according to severity.",
+          "semantic_terms": ["incident response", "triage", "four hours", "severity", "security incident"]
+        },
+        {
+          "chunk_id": "policy_zeta_c03",
+          "page": 3,
+          "section": "Backups",
+          "text": "Critical databases are backed up daily, and restore testing is performed twice per year.",
+          "semantic_terms": ["backups", "databases", "daily", "restore testing", "twice per year"]
+        },
+        {
+          "chunk_id": "policy_zeta_c04",
+          "page": 4,
+          "section": "Encryption",
+          "text": "Confidential information is encrypted in transit and at rest using approved cryptographic standards.",
+          "semantic_terms": ["encryption", "confidential information", "in transit", "at rest", "cryptographic standards"]
+        }
+      ]
+    },
+    {
+      "doc_id": "memo_theta_board",
+      "filename": "theta_board_memo.pdf",
+      "doc_type": "memo",
+      "title": "Theta Board Memo",
+      "chunks": [
+        {
+          "chunk_id": "memo_theta_c01",
+          "page": 1,
+          "section": "Expansion",
+          "text": "The board memo recommends opening a regional support office in Austin during the second half of the year.",
+          "semantic_terms": ["expansion", "support office", "austin", "board memo", "second half"]
+        },
+        {
+          "chunk_id": "memo_theta_c02",
+          "page": 2,
+          "section": "Hiring",
+          "text": "The operating plan includes hiring eight customer success managers and two implementation consultants.",
+          "semantic_terms": ["hiring", "customer success", "implementation consultants", "operating plan", "headcount"]
+        },
+        {
+          "chunk_id": "memo_theta_c03",
+          "page": 3,
+          "section": "Budget",
+          "text": "The proposed expansion budget is 2.8 million dollars, including rent, recruiting, training, and travel.",
+          "semantic_terms": ["budget", "2.8 million", "rent", "recruiting", "training"]
+        },
+        {
+          "chunk_id": "memo_theta_c04",
+          "page": 4,
+          "section": "Risks",
+          "text": "Execution risks include local hiring delays, onboarding quality, and slower-than-expected enterprise demand.",
+          "semantic_terms": ["execution risks", "hiring delays", "onboarding", "enterprise demand", "risk"]
+        }
+      ]
+    }
+  ]
+}

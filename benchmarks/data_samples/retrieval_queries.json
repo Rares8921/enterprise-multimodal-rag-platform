@@ -1,0 +1,119 @@
+{
+  "dataset_name": "synthetic_legal_financial_retrieval_queries",
+  "dataset_type": "synthetic_offline_retrieval_fixture",
+  "description": "Synthetic labeled retrieval queries for offline comparison of vector-only, BM25-only, and hybrid ranking mechanics.",
+  "queries": [
+    {
+      "query_id": "rq001",
+      "category": "exact_lexical_match",
+      "query": "termination thirty days written notice",
+      "semantic_terms": ["termination", "notice", "thirty days", "written notice"],
+      "relevant_chunk_ids": ["contract_alpha_c02"],
+      "notes": "Exact wording appears in the target legal chunk."
+    },
+    {
+      "query_id": "rq002",
+      "category": "paraphrase_semantic_match",
+      "query": "which clause says the vendor covers intellectual property lawsuits from the hosted service",
+      "semantic_terms": ["indemnification", "intellectual property", "third party claims", "hosted platform"],
+      "relevant_chunk_ids": ["contract_beta_c02"],
+      "notes": "Query paraphrases indemnification without using the exact chunk wording."
+    },
+    {
+      "query_id": "rq003",
+      "category": "numeric_financial_query",
+      "query": "what was fiscal 2024 revenue 128.4 million",
+      "semantic_terms": ["revenue", "fiscal 2024", "128.4 million"],
+      "relevant_chunk_ids": ["finance_orion_c01"],
+      "notes": "Numeric financial value should anchor the answer."
+    },
+    {
+      "query_id": "rq004",
+      "category": "legal_clause_query",
+      "query": "what law governs disputes and where must they be filed",
+      "semantic_terms": ["governing law", "delaware", "jurisdiction", "disputes"],
+      "relevant_chunk_ids": ["contract_beta_c03"],
+      "notes": "Legal clause question over governing law and forum."
+    },
+    {
+      "query_id": "rq005",
+      "category": "citation_oriented_query",
+      "query": "cite the source for customer data retention after termination",
+      "semantic_terms": ["data retention", "termination", "ninety days", "delete data"],
+      "relevant_chunk_ids": ["contract_alpha_c04"],
+      "notes": "Citation-oriented query should retrieve the source chunk."
+    },
+    {
+      "query_id": "rq006",
+      "category": "ambiguous_query",
+      "query": "what are the risks",
+      "semantic_terms": ["risk factors", "execution risks", "risk"],
+      "relevant_chunk_ids": ["finance_nova_c04", "memo_theta_c04"],
+      "notes": "Ambiguous query has multiple acceptable risk-related chunks."
+    },
+    {
+      "query_id": "rq007",
+      "category": "distractor_heavy_query",
+      "query": "security incident notification timing in the data processing addendum",
+      "semantic_terms": ["security incident", "notify", "controller", "breach"],
+      "relevant_chunk_ids": ["contract_gamma_c02"],
+      "notes": "There are security-policy distractors that are topically similar but not the DPA notification clause."
+    },
+    {
+      "query_id": "rq008",
+      "category": "lexical_bm25_should_help",
+      "query": "net 45 days invoice date",
+      "semantic_terms": ["payment terms", "invoice", "net 45"],
+      "relevant_chunk_ids": ["contract_delta_c04"],
+      "notes": "Exact phrase and number should help BM25 promote the correct chunk."
+    },
+    {
+      "query_id": "rq009",
+      "category": "vector_semantic_should_help",
+      "query": "can the customer inspect security controls every year",
+      "semantic_terms": ["audit rights", "security documentation", "annual review", "reasonable notice"],
+      "relevant_chunk_ids": ["contract_gamma_c04"],
+      "notes": "Paraphrase of audit rights with weak lexical overlap."
+    },
+    {
+      "query_id": "rq010",
+      "category": "numeric_financial_query",
+      "query": "deferred revenue 54.2 million prepaid annual support",
+      "semantic_terms": ["deferred revenue", "54.2 million", "prepaid", "annual support"],
+      "relevant_chunk_ids": ["finance_helix_c02"],
+      "notes": "Financial numeric value plus account name."
+    },
+    {
+      "query_id": "rq011",
+      "category": "legal_clause_query",
+      "query": "force majeure delay natural disaster labor strike government order",
+      "semantic_terms": ["force majeure", "delay", "natural disaster", "labor strike", "government order"],
+      "relevant_chunk_ids": ["contract_delta_c02"],
+      "notes": "Legal clause with several exact lexical anchors."
+    },
+    {
+      "query_id": "rq012",
+      "category": "paraphrase_semantic_match",
+      "query": "does management say the company can keep operating",
+      "semantic_terms": ["going concern", "substantial doubt", "management conclusion", "continue operations"],
+      "relevant_chunk_ids": ["finance_helix_c04"],
+      "notes": "Paraphrases going-concern language."
+    },
+    {
+      "query_id": "rq013",
+      "category": "citation_oriented_query",
+      "query": "source for operating cash flow and capital expenditures",
+      "semantic_terms": ["cash flow", "operating activities", "capital expenditures"],
+      "relevant_chunk_ids": ["finance_orion_c03"],
+      "notes": "Citation-oriented financial query."
+    },
+    {
+      "query_id": "rq014",
+      "category": "distractor_heavy_query",
+      "query": "cybersecurity incidents customer concentration foreign exchange supplier disruption",
+      "semantic_terms": ["risk factors", "cybersecurity", "customer concentration", "foreign exchange", "supplier disruption"],
+      "relevant_chunk_ids": ["finance_nova_c04"],
+      "notes": "Risk query includes words also present in security-policy chunks."
+    }
+  ]
+}

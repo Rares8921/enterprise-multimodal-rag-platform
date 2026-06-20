@@ -130,3 +130,9 @@
 3. Add deterministic tests for fixture schema, metrics, ranking output, weight validation, report generation, and strategy-specific behavior.
 4. Generate checked-in JSON/Markdown benchmark evidence labeled as synthetic and offline.
 5. Update docs, README, and `PROJECT_EVIDENCE.md` with bounded retrieval benchmark claims and limitations.
+
+### Fixture Progress
+
+- Added synthetic offline retrieval document fixtures with 10 documents and 40 chunks spanning legal contracts, financial reports, and distractor policy/memo content.
+- Added 14 labeled synthetic retrieval queries across exact lexical, paraphrase/semantic, numeric financial, legal clause, citation-oriented, ambiguous, distractor-heavy, BM25-helpful, and vector-helpful categories.
+- Validated that every labeled relevant chunk ID exists in the chunk fixture.
