@@ -11,6 +11,9 @@ Multiservice document intelligence prototype for OCR, LayoutLMv3 layout parsing,
 - Hybrid retrieval reranking that combines vector candidate scores with BM25 lexical scores.
 - Labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies with Recall@k, MRR, and nDCG.
 - Real-service document RAG evaluation harness for curated local PDF corpora, with manifest validation, ingestion runs, Pinecone retrieval evaluation, optional answer proxy evaluation, and JSON/Markdown reports.
+- Public corpus acquisition tooling for CUAD legal contracts and SEC EDGAR financial filings, generating manifest-compatible corpora without committing raw files.
+- Public-safe synthetic PDF corpus generator for smoke-testing PDF ingestion workflow readiness.
+- Preflight and report-promotion tooling for safer local document RAG evaluation runs.
 - LLM prompt selection for legal contracts and financial reports.
 - Cost-aware LLM routing between Gemini and Mistral using typed complexity scoring.
 - LLM fallback, response caching, citation extraction, confidence scoring, and token/cost accounting.
@@ -109,6 +112,7 @@ DOCUMENT_RAG_EVAL_API_KEY
 DOCUMENT_RAG_EVAL_BEARER_TOKEN
 DOCUMENT_RAG_EVAL_EMBEDDING_MODEL
 PINECONE_NAMESPACE
+SEC_USER_AGENT
 MLFLOW_TRACKING_URI
 PROMETHEUS_URL
 GRAFANA_ADMIN_PASSWORD
@@ -131,6 +135,7 @@ Benchmark runner tests:
 ```powershell
 pytest tests\benchmark\test_llm_routing_benchmark.py -q
 pytest tests\benchmark\test_retrieval_benchmark.py -q
+pytest tests\benchmark\test_public_corpus_workflow.py -q
 ```
 
 Full test suite:
@@ -226,6 +231,47 @@ python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\
 
 These commands produce local JSON/Markdown reports under `benchmarks\corpora\results\`. The reports are ignored by default unless a specific, safe report is intentionally selected for review.
 
+## Public Corpus Workflow
+
+Generate a public-safe synthetic PDF smoke corpus:
+
+```powershell
+python benchmarks\generate_synthetic_pdf_corpus.py --output-pdf-dir benchmarks\corpora\local_pdfs\synthetic_smoke --manifest-out benchmarks\corpora\synthetic_smoke_manifest.json --overwrite --seed 7 --num-docs 6
+```
+
+Prepare a CUAD manifest from local CUAD-style metadata without downloading PDFs:
+
+```powershell
+python benchmarks\acquire_public_corpus.py cuad --metadata-json benchmarks\corpora\local_pdfs\cuad_metadata.json --output-pdf-dir benchmarks\corpora\local_pdfs\cuad --manifest-out benchmarks\corpora\cuad_manifest.generated.json --sample-size 10
+```
+
+Prepare a SEC EDGAR manifest from local filing metadata without network access:
+
+```powershell
+python benchmarks\acquire_public_corpus.py sec-edgar --filings-json benchmarks\corpora\local_pdfs\sec_filings.json --output-file-dir benchmarks\corpora\local_pdfs\sec_edgar --manifest-out benchmarks\corpora\sec_edgar_manifest.generated.json --sample-size 6
+```
+
+Fetch SEC filing metadata only when `SEC_USER_AGENT` is set to a real contact string:
+
+```powershell
+$env:SEC_USER_AGENT="Your Name your.email@example.com"
+python benchmarks\acquire_public_corpus.py sec-edgar --fetch-metadata --ticker AAPL --form-type 10-K --sample-size 1 --manifest-out benchmarks\corpora\sec_edgar_manifest.generated.json
+```
+
+Run preflight before service calls:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py preflight --preflight-target retrieve --manifest benchmarks\corpora\synthetic_smoke_manifest.json --pdf-root benchmarks\corpora\local_pdfs
+```
+
+Promote a local report into a sanitized public summary:
+
+```powershell
+python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_local.json --output-md benchmarks\corpora\results\sanitized_document_rag_summary.md
+```
+
+Make targets mirror these commands: `corpus-generate-synthetic`, `corpus-acquire-cuad`, `corpus-acquire-sec`, `corpus-preflight`, `corpus-validate`, `corpus-ingest`, `corpus-retrieve`, `corpus-answer`, and `corpus-promote-report`.
+
 ## Reading Benchmark Reports
 
 LLM routing reports include:
@@ -291,6 +337,9 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - The repository contains vector retrieval over Pinecone-indexed document chunks plus BM25 reranking over retrieved candidates.
 - The repository contains a labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies.
 - The repository contains a real-service evaluation harness for curated PDF corpora, supporting manifest validation, ingestion runs, Pinecone-backed retrieval evaluation, optional answer proxy evaluation, and report generation.
+- The repository contains public corpus acquisition tooling for CUAD and SEC EDGAR that generates manifest-compatible corpora while keeping raw files ignored by default.
+- The repository contains a public-safe synthetic PDF corpus generator for smoke-testing the PDF ingestion workflow.
+- The repository contains preflight and report-sanitization tooling for safer local document RAG evaluation runs.
 - The repository contains typed, tested LLM routing with cost-aware model selection.
 - The repository contains deterministic tests for routing, prompts, fallback, caching, citations, confidence, cost estimation, and malformed provider responses.
 - The repository contains a reproducible mock benchmark comparing LLM routing strategies.
@@ -308,7 +357,8 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - No production retrieval quality or real Pinecone performance is claimed from the synthetic retrieval benchmark.
 - No real PDF corpus result, Pinecone retrieval result, or answer quality result is claimed unless a local run report is generated and reviewed.
 - No customer/private document evaluation is claimed.
-- No legal or financial correctness is claimed from the synthetic retrieval benchmark.
+- No real public CUAD or SEC evaluation result is claimed unless a generated, sanitized, reviewed report exists.
+- No legal or financial correctness is claimed from the synthetic retrieval benchmark or synthetic PDF smoke corpus.
 - No claim is made that BM25 is a separate first-stage index; current hybrid retrieval reranks vector candidates with BM25.
 - No LayoutLMv3 production accuracy number is claimed.
 
@@ -317,6 +367,8 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - The LLM benchmark is mock/synthetic and uses estimated latency/cost.
 - The retrieval benchmark is synthetic/offline and uses simulated vector scores, not Pinecone measurements.
 - The document RAG harness has not been run against a committed real PDF corpus in this repository.
+- Public acquisition tooling has not downloaded or evaluated real CUAD/SEC documents in this repository state.
+- SEC filings are often HTML and may need local rendering/conversion before PDF ingestion.
 - Hybrid retrieval is currently a reranking layer over vector candidates, not a separate first-stage BM25 index.
 - Some Docker Compose images use `latest`, which weakens environment reproducibility.
 - Full local stack execution requires external services and credentials.

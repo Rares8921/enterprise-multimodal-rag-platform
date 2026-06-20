@@ -13,7 +13,7 @@ This repository is organized as a multi-service document intelligence platform:
 | Query API | `services/inference-api` | Authenticate, rate-limit, retrieve context, call LLM orchestrator, cache responses. |
 | LLM orchestration | `services/llm-orchestrator` | Select prompt, route model, call provider wrapper, fallback, cache, estimate cost. |
 | Monitoring | `monitoring`, `services/monitoring`, Prometheus metrics in services | Export service metrics and provide Prometheus/Grafana configuration. |
-| Benchmarks | `benchmarks`, `tests/benchmark` | Reproducible benchmark utilities, labeled synthetic retrieval fixtures, real-service corpus harness, and smoke tests. |
+| Benchmarks | `benchmarks`, `tests/benchmark` | Reproducible benchmark utilities, labeled synthetic retrieval fixtures, public corpus acquisition, real-service corpus harness, preflight checks, report promotion, and smoke tests. |
 
 ## Document Ingestion Flow
 
@@ -122,6 +122,24 @@ The harness supports:
 
 This harness enables local real-service case-study runs over curated PDF corpora. It does not create a production retrieval-quality claim by itself; a claim about a specific corpus requires a generated report, documented environment, and clear limitations.
 
+## Public Corpus Readiness Flow
+
+```mermaid
+flowchart LR
+  Sources["Public source registry"] --> CUAD["CUAD adapter"]
+  Sources --> SEC["SEC EDGAR adapter"]
+  CUAD --> Local["Ignored local corpus files"]
+  SEC --> Local
+  Synth["Synthetic PDF generator"] --> Local
+  Local --> Manifest["Manifest-compatible corpus JSON"]
+  Manifest --> Preflight["Preflight checks"]
+  Preflight --> Harness["validate / ingest / retrieve / answer"]
+  Harness --> LocalReports["Ignored local reports"]
+  LocalReports --> Promote["Sanitized report promotion"]
+```
+
+Public acquisition code records source attribution and usage notes, but the registry and adapters are not themselves evidence that public documents were downloaded or evaluated. SEC network access requires `SEC_USER_AGENT`; CUAD acquisition requires local dataset review and source-term review. Raw public files and generated local reports remain ignored by default.
+
 ## LLM Routing Flow
 
 ```mermaid
@@ -192,6 +210,7 @@ Implemented mechanisms include:
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates; the included benchmark is synthetic/offline and does not measure Pinecone production behavior.
 - A real-service document RAG harness exists for local PDF corpora, but no checked-in real PDF/Pinecone report is included yet.
+- Public CUAD/SEC acquisition, preflight, synthetic PDF smoke, and report promotion tooling exist, but no real public-corpus evaluation report is checked in yet.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.
 - The compose stack uses some `latest` images; pinning all runtime images would improve reproducibility.

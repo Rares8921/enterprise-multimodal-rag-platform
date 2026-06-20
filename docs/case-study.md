@@ -33,7 +33,8 @@ The query path is:
 - Store raw documents in MinIO and metadata/status in PostgreSQL plus Redis for fast status/cache access.
 - Use LayoutLMv3 for document structure extraction rather than plain text-only OCR output.
 - Use tenant-scoped vector namespaces in Pinecone, then rerank vector candidates with BM25 lexical scores.
-- Separate corpus manifests from raw PDF data so local/private evaluation corpora can be validated without committing large or sensitive files.
+- Separate corpus manifests from raw PDF data so local/private/public evaluation corpora can be validated without committing large or sensitive files.
+- Add acquisition and preflight tooling before claiming public-corpus evaluation results.
 - Keep LLM routing deterministic enough to unit test with mocked providers.
 - Use a mock benchmark first so routing mechanics can be reproduced without credentials.
 - Add a synthetic labeled retrieval benchmark before making any retrieval-quality claim.
@@ -125,6 +126,16 @@ It supports:
 
 Corpus manifests live under `benchmarks/corpora/`; raw PDFs and local reports are ignored by default. This harness is intended for curated public or private-local case-study runs. No checked-in report currently proves real PDF retrieval quality, real legal/financial correctness, or production behavior.
 
+Public corpus readiness tooling now includes:
+
+- CUAD / Atticus Project manifest preparation for legal contracts
+- SEC EDGAR filing metadata preparation for financial reports, with explicit `SEC_USER_AGENT` handling
+- deterministic synthetic PDF generation for public-safe smoke tests
+- preflight checks before service calls
+- sanitized report promotion for reviewed local reports
+
+These tools support a workflow toward real public-corpus evaluation. They do not replace a real run report.
+
 ## 8. Results
 
 Current checked-in LLM routing report generated from commit: `f0d1fd0`
@@ -149,13 +160,14 @@ Current checked-in retrieval report generated from commit: `61fedd9`
 
 Interpretation: on this controlled synthetic fixture, the hybrid variants rank all labeled relevant chunks within top 5 and improve Recall@1 over either single-strategy baseline. This supports only a bounded claim that retrieval behavior is measurable on labeled synthetic fixtures.
 
-No real-service PDF corpus result is checked into the repository yet. The document RAG harness can generate such reports locally, but the current evidence is harness capability and deterministic validation, not measured production retrieval quality.
+No real-service public PDF/Pinecone result is checked into the repository yet. The document RAG harness, public acquisition adapters, synthetic PDF generator, preflight checks, and report promotion tool can support such runs locally, but the current evidence is tooling capability and deterministic validation, not measured production retrieval quality.
 
 ## 9. Limitations
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates, not as a separate first-stage BM25 index.
 - The retrieval benchmark is synthetic/offline and uses simulated vector scores rather than Pinecone results.
-- The document RAG harness has not been run against a checked-in curated PDF corpus or live Pinecone index in this repository.
+- The document RAG harness has not been run against a checked-in curated public PDF corpus or live Pinecone index in this repository.
+- CUAD/SEC acquisition code exists, but no real CUAD/SEC documents or reports are committed.
 - The LLM benchmark does not call real model providers.
 - Latency numbers are deterministic estimates, not measured provider latency.
 - Quality proxy is not semantic evaluation.
@@ -166,7 +178,7 @@ No real-service PDF corpus result is checked into the repository yet. The docume
 
 ## 10. What I Would Improve Next
 
-- Run the document RAG harness against a curated public PDF corpus and check in a safe, license-compatible report.
+- Run the document RAG harness against a curated public CUAD/SEC corpus and check in a sanitized, license-compatible report.
 - Add a real-provider benchmark mode with opt-in credentials and strict report labeling.
 - Expand retrieval evaluation datasets with more labeled queries and independent label review.
 - Pin container image versions used by Docker Compose.

@@ -54,3 +54,54 @@ and keep `allowed_to_commit` set to `false` for every sensitive document.
 
 The harness and reports must be described as local/real-service evaluation, not production usage or production retrieval quality.
 
+
+## Acquisition And Smoke Workflows
+
+Generate synthetic public-safe PDFs for smoke testing:
+
+```powershell
+python benchmarks\generate_synthetic_pdf_corpus.py --output-pdf-dir benchmarks\corpora\local_pdfs\synthetic_smoke --manifest-out benchmarks\corpora\synthetic_smoke_manifest.json --overwrite --seed 7 --num-docs 6
+```
+
+Prepare a CUAD manifest from local metadata. This does not download files unless `--download` is passed and metadata rows include explicit PDF URLs:
+
+```powershell
+python benchmarks\acquire_public_corpus.py cuad --metadata-json benchmarks\corpora\local_pdfs\cuad_metadata.json --output-pdf-dir benchmarks\corpora\local_pdfs\cuad --manifest-out benchmarks\corpora\cuad_manifest.generated.json --sample-size 10
+```
+
+Prepare a SEC EDGAR manifest from local filing metadata without network access:
+
+```powershell
+python benchmarks\acquire_public_corpus.py sec-edgar --filings-json benchmarks\corpora\local_pdfs\sec_filings.json --output-file-dir benchmarks\corpora\local_pdfs\sec_edgar --manifest-out benchmarks\corpora\sec_edgar_manifest.generated.json --sample-size 6
+```
+
+Fetch SEC metadata only with a real contact User-Agent and conservative request pacing:
+
+```powershell
+$env:SEC_USER_AGENT="Your Name your.email@example.com"
+python benchmarks\acquire_public_corpus.py sec-edgar --fetch-metadata --ticker AAPL --form-type 10-K --sample-size 1 --manifest-out benchmarks\corpora\sec_edgar_manifest.generated.json
+```
+
+Run preflight before service calls:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py preflight --preflight-target ingest --manifest benchmarks\corpora\synthetic_smoke_manifest.json --pdf-root benchmarks\corpora\local_pdfs
+```
+
+Validate a generated manifest:
+
+```powershell
+python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\synthetic_smoke_manifest.json --pdf-root benchmarks\corpora\local_pdfs
+```
+
+Promote only reviewed local reports:
+
+```powershell
+python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_local.json --output-md benchmarks\corpora\results\sanitized_document_rag_summary.md
+```
+
+## Claim Boundaries
+
+After acquisition code exists, you may claim only that the repository can prepare manifest-compatible CUAD/SEC corpora. After synthetic generation, you may claim public-safe PDF smoke fixtures. After a real public-corpus run, claim only the exact metrics in the generated, reviewed report.
+
+Do not claim production retrieval quality, legal correctness, financial correctness, customer data evaluation, provider accuracy, uptime, QPS, SLA, or cost savings from this workflow.

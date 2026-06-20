@@ -288,3 +288,11 @@
 - Fixed `benchmarks/promote_document_rag_report.py` so sanitization preserves the top-level answer proxy metrics section while still removing raw answer text fields.
 - Validation run: `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 12 passed; `python -m py_compile benchmarks\promote_document_rag_report.py tests\benchmark\test_public_corpus_workflow.py`.
 - Remaining limitation: tests use mocked metadata and temp PDFs only; they do not perform real CUAD/SEC downloads, Pinecone calls, OCR, or provider calls.
+
+### Public Corpus Documentation Progress
+
+- Added Makefile targets for corpus validation, preflight, synthetic generation, CUAD acquisition, SEC acquisition, ingestion, retrieval, answer proxy evaluation, and report promotion.
+- Updated README, corpus runbook, architecture docs, case study, and `PROJECT_EVIDENCE.md` with public corpus acquisition commands, synthetic PDF smoke workflow, preflight commands, report promotion commands, supported claims, and unsupported claims.
+- Documentation now distinguishes acquisition/readiness tooling from actual public-corpus evaluation results; no CUAD/SEC retrieval metrics are claimed.
+- Validation run: `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 12 passed; `python -m py_compile benchmarks\acquire_public_corpus.py benchmarks\generate_synthetic_pdf_corpus.py benchmarks\promote_document_rag_report.py benchmarks\e2e_document_rag_eval.py benchmarks\corpus_manifest.py benchmarks\public_corpus_sources.py`; synthetic manifest preflight smoke passed. `make -n corpus-generate-synthetic` could not run because `make` is not installed in this Windows environment.
+- Remaining limitation: public corpus acquisition code is documented, but no real CUAD/SEC documents or sanitized public-corpus evaluation reports are committed.

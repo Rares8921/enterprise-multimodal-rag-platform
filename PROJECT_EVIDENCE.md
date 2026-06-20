@@ -126,6 +126,76 @@ Limitations:
 - Answer mode is a lightweight proxy and does not prove semantic correctness, legal correctness, financial correctness, or provider accuracy.
 
 Claim:
+Added public corpus acquisition tooling for CUAD legal contracts and SEC EDGAR financial filings, generating manifest-compatible corpora for the document RAG evaluation harness.
+
+Evidence:
+The acquisition CLI has CUAD and SEC EDGAR subcommands. CUAD support parses local CUAD-style metadata, prepares manifests, and can optionally copy local PDFs or download explicit PDF URLs. SEC support uses a curated ticker/CIK list, supports no-network filing metadata, requires a real `SEC_USER_AGENT` for SEC network fetches, rate-limits requests, records source format, and generates public manifests.
+
+Files:
+- `benchmarks/acquire_public_corpus.py`
+- `benchmarks/corpus_sources/cuad.py`
+- `benchmarks/corpus_sources/sec_edgar.py`
+- `benchmarks/corpora/public_sources.json`
+- `benchmarks/corpora/sec_edgar_sample_companies.json`
+- `tests/benchmark/test_public_corpus_workflow.py`
+
+Validation:
+- `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` passed with 12 tests.
+- No-network CUAD smoke with mocked metadata generated a manifest and validate-only smoke passed.
+- No-network SEC smoke with mocked filing metadata generated an HTML-source manifest and validate-only smoke passed.
+- SEC fetch mode fails clearly when `SEC_USER_AGENT` is missing.
+
+Limitations:
+- No real CUAD or SEC documents were downloaded or committed.
+- No public-corpus ingestion, Pinecone retrieval, or answer evaluation result is claimed.
+- CUAD source/license terms must be reviewed before redistributing raw files or selected reports.
+- SEC HTML filings may require local rendering/conversion before PDF ingestion.
+
+Claim:
+Added a public-safe synthetic PDF corpus generator for smoke-testing the real document ingestion workflow.
+
+Evidence:
+The generator writes deterministic small legal-style and financial-style PDFs to ignored local corpus storage and writes a safe committed manifest with document/page-level labels, expected answer hints, and citation requirements.
+
+Files:
+- `benchmarks/generate_synthetic_pdf_corpus.py`
+- `benchmarks/corpora/synthetic_smoke_manifest.json`
+- `tests/benchmark/test_public_corpus_workflow.py`
+
+Validation:
+- `python -m py_compile benchmarks\generate_synthetic_pdf_corpus.py`
+- Temp synthetic generation plus validate-only with file checks passed.
+- Default synthetic generation plus validate-only with file checks passed.
+- `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` passed with 12 tests.
+
+Limitations:
+- The PDFs are synthetic smoke fixtures, not real legal or financial documents.
+- Results from this corpus cannot be described as public legal/financial retrieval quality.
+
+Claim:
+Added preflight and report-sanitization tooling for safe local document RAG evaluation runs.
+
+Evidence:
+Preflight mode checks manifest validity, local files, corpus warnings, output writability, tracked artifact safety, service reachability, Pinecone configuration, embedding model configuration, and SEC User-Agent readiness. Report promotion turns local JSON reports into sanitized public Markdown/JSON summaries while redacting local paths and content-bearing fields and refusing private-local reports by default.
+
+Files:
+- `benchmarks/e2e_document_rag_eval.py`
+- `benchmarks/promote_document_rag_report.py`
+- `tests/benchmark/test_public_corpus_workflow.py`
+
+Validation:
+- `python -m py_compile benchmarks\e2e_document_rag_eval.py benchmarks\promote_document_rag_report.py`
+- Validate-only preflight smoke passed.
+- Retrieve preflight with missing Pinecone key/index produced a failure report.
+- Synthetic report promotion to temp Markdown/JSON passed.
+- Private-local report promotion was refused without `--allow-private-summary`.
+- `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` passed with 12 tests.
+
+Limitations:
+- Preflight checks readiness only; they do not prove service correctness, retrieval quality, or production readiness.
+- Sanitized report promotion still requires human review before a report is selected as public evidence.
+
+Claim:
 The project implements typed, cost-aware LLM routing and orchestration.
 
 Evidence:
