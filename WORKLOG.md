@@ -134,5 +134,13 @@
 ### Fixture Progress
 
 - Added synthetic offline retrieval document fixtures with 10 documents and 40 chunks spanning legal contracts, financial reports, and distractor policy/memo content.
-- Added 14 labeled synthetic retrieval queries across exact lexical, paraphrase/semantic, numeric financial, legal clause, citation-oriented, ambiguous, distractor-heavy, BM25-helpful, and vector-helpful categories.
+- Added 15 labeled synthetic retrieval queries across exact lexical, paraphrase/semantic, numeric financial, legal clause, citation-oriented, ambiguous, distractor-heavy, BM25-helpful, and vector-helpful categories.
 - Validated that every labeled relevant chunk ID exists in the chunk fixture.
+
+### Benchmark Implementation Progress
+
+- Added `benchmarks/retrieval_benchmark.py`, an offline synthetic retrieval-quality benchmark that compares vector-only, BM25-only reranking over the same candidate pool, and hybrid vector/BM25 score-weight ablations.
+- The vector path uses a deterministic `semantic_terms` bag-of-words cosine simulator; the benchmark does not call Pinecone, external embeddings, or production services.
+- Metrics include Recall@1, Recall@3, Recall@5, MRR, nDCG@5, category summaries, per-query top results, top-5 misses, and candidate-pool miss counts.
+- Added a controlled labeled query where exact numeric terms allow BM25 to improve over the semantic proxy, while existing ambiguous/citation queries show semantic proxy behavior where BM25 alone ranks worse.
+- Validation run: `python benchmarks\retrieval_benchmark.py --output-dir $env:TEMP\retrieval-benchmark --run-id implementation_check`.

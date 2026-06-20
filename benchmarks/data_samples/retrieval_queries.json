@@ -114,6 +114,14 @@
       "semantic_terms": ["risk factors", "cybersecurity", "customer concentration", "foreign exchange", "supplier disruption"],
       "relevant_chunk_ids": ["finance_nova_c04"],
       "notes": "Risk query includes words also present in security-policy chunks."
+    },
+    {
+      "query_id": "rq015",
+      "category": "lexical_bm25_should_help",
+      "query": "source for 22.6 million operating activities and 6.1 million capital expenditures",
+      "semantic_terms": ["cash flow"],
+      "relevant_chunk_ids": ["finance_orion_c03"],
+      "notes": "The semantic proxy is intentionally broad, while exact numeric terms should help BM25 promote the correct cash-flow chunk."
     }
   ]
 }
