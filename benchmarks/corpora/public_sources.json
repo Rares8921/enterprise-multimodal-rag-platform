@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "source_id": "cuad_atticus",
+      "source_name": "CUAD / Atticus Project Contract Understanding Dataset",
+      "domain": "legal",
+      "license_or_usage_note": "Public legal-contract research corpus from The Atticus Project/CUAD. Preserve attribution and verify the current dataset license/terms before redistributing raw documents or derived artifacts.",
+      "source_url": "https://github.com/TheAtticusProject/cuad",
+      "provider_name": "The Atticus Project",
+      "expected_document_format": ["pdf"],
+      "raw_files_may_be_committed": false,
+      "attribution_requirement": "Attribute CUAD and The Atticus Project in generated manifests and reports.",
+      "limitations": [
+        "CUAD labels do not automatically map to page-level or chunk-level labels before local processing.",
+        "Downloaded contract files stay in ignored local corpus storage by default.",
+        "The adapter supports manifest generation and optional local preparation; it does not claim legal correctness."
+      ],
+      "recommended_local_storage_path": "benchmarks/corpora/local_pdfs/cuad/",
+      "default_sample_size": 10
+    },
+    {
+      "source_id": "sec_edgar",
+      "source_name": "SEC EDGAR Company Filings",
+      "domain": "financial",
+      "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+      "source_url": "https://www.sec.gov/edgar",
+      "provider_name": "U.S. Securities and Exchange Commission",
+      "expected_document_format": ["html", "pdf", "rendered_pdf"],
+      "raw_files_may_be_committed": false,
+      "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+      "limitations": [
+        "Most recent filings are HTML; PDF ingestion may require local conversion or rendering.",
+        "The adapter requires SEC_USER_AGENT for network acquisition and rate-limits requests.",
+        "Downloaded filings stay in ignored local corpus storage by default."
+      ],
+      "recommended_local_storage_path": "benchmarks/corpora/local_pdfs/sec_edgar/",
+      "default_sample_size": 6
+    }
+  ]
+}

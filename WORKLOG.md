@@ -224,3 +224,11 @@
 - Current evidence language remains bounded: synthetic/offline retrieval evidence exists, the real-service harness exists, and no real public PDF/Pinecone result is claimed.
 - Existing gap: Makefile has no corpus workflow targets yet, and the project has no public source registry, acquisition adapters, preflight checks, synthetic PDF generator, or report promotion tooling.
 - Remaining risk: raw downloaded corpora and local reports must stay ignored unless a specific sanitized artifact is intentionally promoted.
+
+### Public Source Registry Progress
+
+- Added `benchmarks/corpora/public_sources.json` with public metadata for CUAD / Atticus Project legal contracts and SEC EDGAR financial filings.
+- Added `benchmarks/public_corpus_sources.py` to load and validate source metadata, expose summaries, and provide manifest-ready source attribution fields.
+- Updated `benchmarks/corpora/README.md` to clarify that the registry is not a downloaded corpus and raw public files still stay in ignored local storage by default.
+- Validation run: `python -m py_compile benchmarks\public_corpus_sources.py`; `python -c "from benchmarks.public_corpus_sources import load_public_source_registry; r=load_public_source_registry(); print(r.summary())"`.
+- Remaining limitation: this step adds source metadata only; no public documents were downloaded, ingested, indexed, or evaluated.

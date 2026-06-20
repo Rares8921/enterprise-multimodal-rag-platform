@@ -16,6 +16,18 @@ benchmarks/corpora/results/
 
 Commit only manifests, schemas, harness code, tests, and deliberately selected small reports. Do not commit private PDFs, arbitrary client documents, credentials, service exports, caches, or large generated artifacts.
 
+
+## Public Source Registry
+
+`public_sources.json` lists supported public corpus sources and their usage boundaries. It is metadata only; it does not mean any CUAD contracts or SEC filings have been downloaded, ingested, indexed, or evaluated.
+
+Current source entries are:
+
+- CUAD / Atticus Project for legal contract evaluation workflows.
+- SEC EDGAR company filings for financial-report evaluation workflows.
+
+Raw files acquired from these sources still belong under ignored local storage such as `benchmarks/corpora/local_pdfs/cuad/` or `benchmarks/corpora/local_pdfs/sec_edgar/`. Preserve attribution and source notes in generated manifests and reports.
+
 ## Manifest
 
 Use `example_manifest.json` as the starting point. The manifest records:
