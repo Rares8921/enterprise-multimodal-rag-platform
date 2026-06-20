@@ -168,3 +168,9 @@
 - Added `benchmarks/corpora/example_manifest.json` to document the manifest shape without committing raw PDFs.
 - Added `benchmarks/corpus_manifest.py` with schema-level validation for corpus identity, corpus mode, document metadata, relative filenames, query labels, relevant pages/chunks, expected answer hints, and citation requirements.
 - Current supported claim remains harness-only: the project can define and validate curated PDF corpus manifests. No PDF run, Pinecone retrieval result, answer quality, production usage, or legal/financial correctness is claimed yet.
+
+### Corpus Loader Validation Progress
+
+- Extended `benchmarks/corpus_manifest.py` with a local corpus loader that resolves PDFs under a configured local PDF root, checks missing files, rejects path traversal, warns for private/local manifests, and rejects `allowed_to_commit=true` in `private_local` corpora.
+- Added deterministic tests for valid manifests, missing PDFs, duplicate document IDs, missing query targets, private/local warnings, commit-safety validation, and bad filenames.
+- Validation run: `python -m pytest tests\benchmark\test_corpus_manifest.py -q` - 7 passed.

@@ -59,6 +59,32 @@ class CorpusManifest:
         }
 
 
+@dataclass(frozen=True)
+class LoadedCorpus:
+    manifest: CorpusManifest
+    manifest_path: Path
+    pdf_root: Path
+    document_paths: dict[str, Path]
+    warnings: list[str]
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            **self.manifest.summary(),
+            "manifest_path": str(self.manifest_path),
+            "pdf_root": str(self.pdf_root),
+            "warnings": self.warnings,
+            "documents": [
+                {
+                    "document_id": document.document_id,
+                    "filename": document.filename,
+                    "doc_type": document.doc_type,
+                    "exists": self.document_paths[document.document_id].exists(),
+                    "allowed_to_commit": document.allowed_to_commit,
+                }
+                for document in self.manifest.documents
+            ],
+        }
+
 def read_manifest_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
@@ -105,6 +131,55 @@ def validate_manifest_payload(payload: dict[str, Any]) -> CorpusManifest:
 def load_manifest_schema(path: Path) -> CorpusManifest:
     return validate_manifest_payload(read_manifest_json(path))
 
+
+def load_corpus_manifest(
+    manifest_path: Path,
+    *,
+    pdf_root: Path | None = None,
+    require_files: bool = True,
+) -> LoadedCorpus:
+    resolved_manifest_path = manifest_path.resolve()
+    manifest = load_manifest_schema(resolved_manifest_path)
+    resolved_pdf_root = (pdf_root or resolved_manifest_path.parent / "local_pdfs").resolve()
+
+    warnings = _privacy_warnings(manifest)
+    document_paths = {
+        document.document_id: _resolve_pdf_path(document, resolved_pdf_root)
+        for document in manifest.documents
+    }
+
+    if require_files:
+        missing = [
+            f"{document.document_id}: {document_paths[document.document_id]}"
+            for document in manifest.documents
+            if not document_paths[document.document_id].is_file()
+        ]
+        if missing:
+            raise ManifestValidationError(f"Referenced PDF files are missing: {missing}")
+
+    return LoadedCorpus(
+        manifest=manifest,
+        manifest_path=resolved_manifest_path,
+        pdf_root=resolved_pdf_root,
+        document_paths=document_paths,
+        warnings=warnings,
+    )
+
+
+def format_corpus_summary(loaded: LoadedCorpus) -> str:
+    summary = loaded.summary()
+    lines = [
+        f"Corpus: {summary['corpus_name']} ({summary['corpus_id']})",
+        f"Mode: {summary['mode']}",
+        f"Manifest: {summary['manifest_path']}",
+        f"PDF root: {summary['pdf_root']}",
+        f"Documents: {summary['document_count']}",
+        f"Queries: {summary['query_count']}",
+    ]
+    if loaded.warnings:
+        lines.append("Warnings:")
+        lines.extend(f"- {warning}" for warning in loaded.warnings)
+    return "\n".join(lines)
 
 def _parse_document(raw: dict[str, Any], index: int) -> CorpusDocument:
     context = f"documents[{index}]"
@@ -210,6 +285,29 @@ def _validate_relative_filename(filename: str, context: str) -> None:
     if path.is_absolute() or ".." in path.parts:
         raise ManifestValidationError(f"{context}.filename must be a relative path inside the local PDF directory")
 
+
+def _resolve_pdf_path(document: CorpusDocument, pdf_root: Path) -> Path:
+    if Path(document.filename).suffix.lower() != ".pdf":
+        raise ManifestValidationError(f"{document.document_id}.filename must point to a PDF file")
+    path = (pdf_root / document.filename).resolve()
+    if pdf_root not in path.parents and path != pdf_root:
+        raise ManifestValidationError(f"{document.document_id}.filename resolves outside the configured PDF root")
+    return path
+
+
+def _privacy_warnings(manifest: CorpusManifest) -> list[str]:
+    warnings: list[str] = []
+    if manifest.mode == "private_local":
+        warnings.append("Manifest mode is private_local; keep PDFs and generated reports out of git by default.")
+        unsafe = [document.document_id for document in manifest.documents if document.allowed_to_commit]
+        if unsafe:
+            raise ManifestValidationError(
+                "private_local manifests cannot mark documents as allowed_to_commit=true: "
+                f"{unsafe}"
+            )
+    elif any(not document.allowed_to_commit for document in manifest.documents):
+        warnings.append("At least one document is marked allowed_to_commit=false; do not copy it into tracked paths.")
+    return warnings
 
 def _duplicates(values: list[str]) -> list[str]:
     seen: set[str] = set()
