@@ -67,7 +67,37 @@ Validation:
 
 Limitations:
 - BM25 is used as a reranker over vector candidates, not as a separate first-stage index.
-- No retrieval quality benchmark over labeled relevant documents is currently included.
+- Retrieval-quality evidence is synthetic/offline and uses a simulated vector scoring proxy, not live Pinecone retrieval.
+
+Claim:
+Added a labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies using Recall@k, MRR, and nDCG.
+
+Evidence:
+The benchmark runs offline over synthetic legal/financial-style document chunks and labeled queries. It compares vector-only ranking, BM25-only reranking over the same simulated vector candidate pool, and hybrid vector/BM25 score-weight ablations. It reports overall metrics, category-level metrics, per-query top results, top-5 misses, candidate-pool misses, exact command, timestamp, git commit, environment summary, dataset paths, and limitations.
+
+Files:
+- `benchmarks/retrieval_benchmark.py`
+- `benchmarks/data_samples/retrieval_documents.json`
+- `benchmarks/data_samples/retrieval_queries.json`
+- `benchmarks/results/retrieval_benchmark_latest.json`
+- `benchmarks/results/retrieval_benchmark_latest.md`
+- `tests/benchmark/test_retrieval_benchmark.py`
+
+Validation:
+- `python benchmarks\retrieval_benchmark.py --output-dir benchmarks\results --run-id latest`
+- `python -m pytest tests\benchmark\test_retrieval_benchmark.py -q` passed with 7 tests.
+- Checked-in report was generated from commit `61fedd9` with 40 chunks, 15 labeled synthetic queries, and candidate pool size 25.
+- vector_only: Recall@1 `0.9000`, Recall@3 `1.0000`, Recall@5 `1.0000`, MRR `0.9667`, nDCG@5 `0.9754`.
+- bm25_only: Recall@1 `0.8667`, Recall@3 `0.9667`, Recall@5 `1.0000`, MRR `0.9222`, nDCG@5 `0.9468`.
+- hybrid_70_30: Recall@1 `0.9667`, Recall@3 `1.0000`, Recall@5 `1.0000`, MRR `1.0000`, nDCG@5 `1.0000`.
+- hybrid_50_50: Recall@1 `0.9667`, Recall@3 `1.0000`, Recall@5 `1.0000`, MRR `1.0000`, nDCG@5 `1.0000`.
+- hybrid_30_70: Recall@1 `0.9667`, Recall@3 `1.0000`, Recall@5 `1.0000`, MRR `1.0000`, nDCG@5 `0.9946`.
+
+Limitations:
+- Dataset is synthetic and should not be described as customer, private, or production data.
+- Vector scores come from a deterministic `semantic_terms` cosine simulator, not Pinecone embeddings.
+- Results compare retrieval mechanics on controlled fixtures only.
+- This does not prove production retrieval quality, legal correctness, financial correctness, real latency, QPS, or customer data behavior.
 
 Claim:
 The project implements typed, cost-aware LLM routing and orchestration.
@@ -204,6 +234,7 @@ Files:
 Validation:
 - `python -m pytest tests\unit\test_llm_routing.py tests\unit\test_hybrid_retrieval.py tests\benchmark\test_llm_routing_benchmark.py -q` passed with 19 tests.
 - `python benchmarks\llm_routing_benchmark.py --output-dir $env:TEMP\llm-routing-benchmark --run-id hygiene` wrote JSON, Markdown, and CSV reports to a temporary directory.
+- `python -m pytest tests\benchmark\test_retrieval_benchmark.py -q` passed with 7 tests.
 
 Limitations:
 - CI smoke workflow does not run the full Docker Compose stack.
@@ -222,4 +253,5 @@ Limitations:
 - Do not claim production security guarantees.
 - Do not claim BM25 is a separate first-stage retrieval index; current BM25 support is candidate reranking.
 - Do not claim LayoutLMv3 production accuracy; no validated accuracy report is included.
-- Do not claim retrieval quality over a labeled dataset; no such benchmark is included yet.
+- Do not claim production retrieval quality or real Pinecone performance from the synthetic offline retrieval benchmark.
+- Do not claim the synthetic retrieval benchmark proves legal or financial correctness.

@@ -13,7 +13,7 @@ This repository is organized as a multi-service document intelligence platform:
 | Query API | `services/inference-api` | Authenticate, rate-limit, retrieve context, call LLM orchestrator, cache responses. |
 | LLM orchestration | `services/llm-orchestrator` | Select prompt, route model, call provider wrapper, fallback, cache, estimate cost. |
 | Monitoring | `monitoring`, `services/monitoring`, Prometheus metrics in services | Export service metrics and provide Prometheus/Grafana configuration. |
-| Benchmarks | `benchmarks`, `tests/benchmark` | Reproducible benchmark utilities and smoke tests. |
+| Benchmarks | `benchmarks`, `tests/benchmark` | Reproducible benchmark utilities, labeled synthetic retrieval fixtures, and smoke tests. |
 
 ## Document Ingestion Flow
 
@@ -69,6 +69,32 @@ flowchart LR
 ```
 
 The retrieval path uses Pinecone for first-stage vector candidates, then reranks those candidates with BM25 lexical scores in `services/inference-api/utils/hybrid_retrieval.py`. This supports a bounded hybrid retrieval claim: vector retrieval plus BM25 reranking over retrieved candidates. It is not a separate first-stage BM25 index.
+
+## Retrieval Benchmark Flow
+
+```mermaid
+flowchart LR
+  Docs["Synthetic document chunks"] --> Load["Load fixtures"]
+  Queries["Labeled synthetic queries"] --> Load
+  Load --> Vec["Deterministic semantic_terms cosine"]
+  Vec --> Pool["Top-N simulated vector candidate pool"]
+  Pool --> VOnly["vector_only ranking"]
+  Pool --> BM25["BM25-only reranking"]
+  Pool --> Hybrid["Hybrid vector + BM25 ablations"]
+  VOnly --> Metrics["Recall@k, MRR, nDCG@5"]
+  BM25 --> Metrics
+  Hybrid --> Metrics
+  Metrics --> Reports["JSON and Markdown reports"]
+```
+
+`benchmarks/retrieval_benchmark.py` runs fully offline over:
+
+- `benchmarks/data_samples/retrieval_documents.json`
+- `benchmarks/data_samples/retrieval_queries.json`
+
+The benchmark compares vector-only, BM25-only reranking over the same candidate pool, and hybrid score weights. It reports overall metrics, category metrics, per-query top results, candidate-pool misses, and limitations.
+
+The benchmark uses a deterministic semantic proxy rather than Pinecone embeddings. It supports reproducible comparison of retrieval mechanics on labeled synthetic fixtures, not production retrieval quality.
 
 ## LLM Routing Flow
 
@@ -138,7 +164,7 @@ Implemented mechanisms include:
 
 ## Current Gaps
 
-- Hybrid retrieval is implemented as BM25 reranking over vector candidates; it does not yet have a labeled retrieval-quality benchmark.
+- Hybrid retrieval is implemented as BM25 reranking over vector candidates; the included benchmark is synthetic/offline and does not measure Pinecone production behavior.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.
 - The compose stack uses some `latest` images; pinning all runtime images would improve reproducibility.

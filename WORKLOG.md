@@ -155,3 +155,7 @@
 - Current run used 40 chunks, 15 labeled synthetic queries, a candidate pool of 25, and git commit `61fedd9`.
 - Overall results from the generated report: vector-only Recall@1 0.9000 / MRR 0.9667 / nDCG@5 0.9754; BM25-only Recall@1 0.8667 / MRR 0.9222 / nDCG@5 0.9468; hybrid 70/30 and 50/50 Recall@1 0.9667 / MRR 1.0000 / nDCG@5 1.0000; hybrid 30/70 Recall@1 0.9667 / MRR 1.0000 / nDCG@5 0.9946.
 - Limitations remain: the report is synthetic/offline, uses simulated vector scores, and does not measure production Pinecone behavior, real legal/financial correctness, real latency, QPS, or customer data behavior.
+
+### Retrieval Benchmark Documentation Progress
+
+- Updated README, architecture docs, case study, and `PROJECT_EVIDENCE.md` to document the retrieval benchmark methodology, exact checked-in results, supported CV claim, and unsupported production-quality claims.

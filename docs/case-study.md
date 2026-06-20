@@ -23,7 +23,7 @@ The query path is:
 1. `inference-api` authenticates the tenant and applies rate/concurrency controls.
 2. It checks a Redis query cache.
 3. It embeds the query and retrieves candidate chunks from Pinecone.
-4. It sanitizes and bounds context.
+4. It reranks vector candidates with BM25 lexical scores and builds bounded context.
 5. It calls `llm-orchestrator`.
 6. The orchestrator selects a prompt and model, calls the provider wrapper, extracts citations, computes confidence, records metrics, and caches the response.
 
@@ -35,6 +35,7 @@ The query path is:
 - Use tenant-scoped vector namespaces in Pinecone, then rerank vector candidates with BM25 lexical scores.
 - Keep LLM routing deterministic enough to unit test with mocked providers.
 - Use a mock benchmark first so routing mechanics can be reproduced without credentials.
+- Add a synthetic labeled retrieval benchmark before making any retrieval-quality claim.
 
 ## 5. LLM Routing Design
 
@@ -90,9 +91,31 @@ The benchmark writes JSON, Markdown, and CSV reports. The checked-in evidence is
 
 This is a mock/synthetic benchmark. It estimates cost and latency from fixed formulas and checks only lightweight quality proxies.
 
+The retrieval benchmark is in `benchmarks/retrieval_benchmark.py`.
+
+It compares:
+
+- vector-only ranking with a deterministic `semantic_terms` cosine simulator
+- BM25-only reranking over the same simulated vector candidate pool
+- hybrid vector/BM25 score combinations: 70/30, 50/50, and 30/70
+
+The fixed retrieval fixtures are:
+
+- `benchmarks/data_samples/retrieval_documents.json`
+- `benchmarks/data_samples/retrieval_queries.json`
+
+They contain 10 synthetic legal/financial-style documents, 40 chunks, and 15 labeled queries. Query labels include exact lexical, paraphrase/semantic, numeric financial, legal clause, citation-oriented, ambiguous, distractor-heavy, BM25-helpful, and vector-helpful cases.
+
+The retrieval benchmark writes JSON, Markdown, and optional CSV reports. The checked-in evidence is:
+
+- `benchmarks/results/retrieval_benchmark_latest.json`
+- `benchmarks/results/retrieval_benchmark_latest.md`
+
+This benchmark is synthetic and offline. It does not call Pinecone or external embedding services, and it does not measure real legal/financial answer correctness.
+
 ## 8. Results
 
-Current checked-in report commit: `f0d1fd0`
+Current checked-in LLM routing report generated from commit: `f0d1fd0`
 
 | Strategy | Estimated Total Cost | p50 ms | p95 ms | p99 ms | Cache Hit Rate | Keyword Overlap | Citation Presence |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -102,9 +125,22 @@ Current checked-in report commit: `f0d1fd0`
 
 Interpretation: the heuristic selects Mistral for simple/medium requests and Gemini for complex or long-context requests in the fixed workload. The estimated cost is lower than always-expensive and higher than always-cheap. Because this is synthetic, it supports only reproducibility of the benchmark method, not real cost savings.
 
+Current checked-in retrieval report generated from commit: `61fedd9`
+
+| Retrieval Strategy | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |
+|---|---:|---:|---:|---:|---:|
+| vector_only | 0.9000 | 1.0000 | 1.0000 | 0.9667 | 0.9754 |
+| bm25_only | 0.8667 | 0.9667 | 1.0000 | 0.9222 | 0.9468 |
+| hybrid_70_30 | 0.9667 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| hybrid_50_50 | 0.9667 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| hybrid_30_70 | 0.9667 | 1.0000 | 1.0000 | 1.0000 | 0.9946 |
+
+Interpretation: on this controlled synthetic fixture, the hybrid variants rank all labeled relevant chunks within top 5 and improve Recall@1 over either single-strategy baseline. This supports only a bounded claim that retrieval behavior is measurable on labeled synthetic fixtures.
+
 ## 9. Limitations
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates, not as a separate first-stage BM25 index.
+- The retrieval benchmark is synthetic/offline and uses simulated vector scores rather than Pinecone results.
 - The LLM benchmark does not call real model providers.
 - Latency numbers are deterministic estimates, not measured provider latency.
 - Quality proxy is not semantic evaluation.
@@ -115,9 +151,9 @@ Interpretation: the heuristic selects Mistral for simple/medium requests and Gem
 
 ## 10. What I Would Improve Next
 
-- Add a labeled retrieval benchmark for the hybrid vector/BM25 reranking layer.
+- Add a real-service retrieval benchmark that runs against Pinecone with documented credentials and environment labeling.
 - Add a real-provider benchmark mode with opt-in credentials and strict report labeling.
-- Add retrieval evaluation datasets with known relevant chunk IDs.
+- Expand retrieval evaluation datasets with more labeled queries and independent label review.
 - Pin container image versions used by Docker Compose.
 - Move FastAPI startup/shutdown hooks to lifespan handlers.
 - Add CI smoke checks for unit tests and the mock benchmark.
