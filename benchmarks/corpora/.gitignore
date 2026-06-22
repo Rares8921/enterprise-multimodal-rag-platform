@@ -1,6 +1,9 @@
 /local_pdfs/*
 !/local_pdfs/.gitkeep
+/*.generated.json
+!/sec_edgar_section_manifest.generated.json
 
 /results/*
 !/results/.gitkeep
-
+!/results/sanitized_sec_retrieval_summary.md
+!/results/sanitized_sec_section_retrieval_summary.md

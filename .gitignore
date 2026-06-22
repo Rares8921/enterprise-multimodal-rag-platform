@@ -36,6 +36,7 @@ env/
 .env.local
 
 # Testing
+tmp/
 .pytest_cache/
 .coverage
 htmlcov/
