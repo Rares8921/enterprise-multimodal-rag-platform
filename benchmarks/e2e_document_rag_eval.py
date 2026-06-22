@@ -434,16 +434,23 @@ def _git_corpus_safety_checks() -> list[dict[str, Any]]:
         tracked = [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
     except Exception as exc:
         return [_preflight_check("git_corpus_safety", "warn", f"Could not inspect tracked corpus artifacts: {exc}", required=False)]
-    unsafe = [
-        path for path in tracked
-        if not path.endswith(".gitkeep")
-        and (
+    unsafe = []
+    for path in tracked:
+        name = Path(path).name
+        is_sanitized_summary = (
+            path.startswith("benchmarks/corpora/results/")
+            and name.startswith("sanitized_")
+            and name.endswith("_summary.md")
+        )
+        if path.endswith(".gitkeep") or is_sanitized_summary:
+            continue
+        if (
             path.startswith("benchmarks/corpora/local_pdfs/")
             or path.startswith("benchmarks/corpora/results/")
             or path.lower().endswith((".pdf", ".html", ".htm"))
             or "document_rag_eval_" in path
-        )
-    ]
+        ):
+            unsafe.append(path)
     if unsafe:
         return [_preflight_check("git_corpus_safety", "fail", f"Potential raw/generated corpus artifacts are tracked: {unsafe}", required=True)]
     return [_preflight_check("git_corpus_safety", "pass", "No raw corpus files or generated local reports are tracked under corpus storage.", required=True)]

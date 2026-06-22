@@ -7,7 +7,7 @@ import pytest
 from benchmarks.corpus_manifest import load_corpus_manifest, validate_manifest_payload
 from benchmarks.corpus_sources.cuad import prepare_cuad_corpus
 from benchmarks.corpus_sources.sec_edgar import prepare_sec_corpus
-from benchmarks.e2e_document_rag_eval import preflight, write_json_report, write_markdown_report
+from benchmarks.e2e_document_rag_eval import _git_corpus_safety_checks, preflight, write_json_report, write_markdown_report
 from benchmarks.generate_synthetic_pdf_corpus import generate_synthetic_pdf_corpus
 from benchmarks.promote_document_rag_report import ReportPromotionError, promote_report
 from benchmarks.public_corpus_sources import load_public_source_registry
@@ -152,6 +152,35 @@ def test_preflight_private_corpus_warning(tmp_path):
     report = preflight(args)
     warnings = [check["message"] for check in report["preflight"]["checks"] if check["status"] == "warn"]
     assert any("private_local" in warning for warning in warnings)
+
+
+def test_preflight_git_safety_allows_sanitized_public_summaries(monkeypatch):
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(stdout="\n".join([
+            "benchmarks/corpora/results/sanitized_sec_retrieval_summary.md",
+            "benchmarks/corpora/results/sanitized_sec_section_retrieval_v2_summary.md",
+        ]))
+
+    monkeypatch.setattr("benchmarks.e2e_document_rag_eval.subprocess.run", fake_run)
+    checks = _git_corpus_safety_checks()
+
+    assert checks == [{
+        "name": "git_corpus_safety",
+        "status": "pass",
+        "required": True,
+        "message": "No raw corpus files or generated local reports are tracked under corpus storage.",
+    }]
+
+
+def test_preflight_git_safety_rejects_raw_local_reports(monkeypatch):
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(stdout="benchmarks/corpora/results/document_rag_eval_answer_raw.json")
+
+    monkeypatch.setattr("benchmarks.e2e_document_rag_eval.subprocess.run", fake_run)
+    checks = _git_corpus_safety_checks()
+
+    assert checks[0]["status"] == "fail"
+    assert "document_rag_eval_answer_raw.json" in checks[0]["message"]
 
 
 def test_synthetic_pdf_manifest_generation_and_labels(tmp_path):
