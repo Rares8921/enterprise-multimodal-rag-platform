@@ -190,6 +190,9 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
     model = _load_embedding_model(args.embedding_model)
     namespace = _pinecone_namespace(args)
 
+    section_labels_by_document = _section_labels_by_document(loaded.manifest.documents)
+    document_identity_lookup = _document_identity_lookup(loaded.manifest.documents, ingestion_mapping)
+
     rows: list[dict[str, Any]] = []
     for query in loaded.manifest.queries:
         vector = model.encode(query.query, convert_to_numpy=True, normalize_embeddings=True)
@@ -206,7 +209,14 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
             vector_weight=args.vector_weight,
             bm25_weight=args.bm25_weight,
         )
-        rows.append(_evaluate_retrieval_query(query, reranked, ingestion_mapping, args.top_k))
+        rows.append(_evaluate_retrieval_query(
+            query,
+            reranked,
+            ingestion_mapping,
+            args.top_k,
+            section_labels_by_document,
+            document_identity_lookup,
+        ))
 
     report["retrieval"] = {
         "mode": "pinecone_real_service",
@@ -220,7 +230,7 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
         "by_category": _category_metrics(rows),
         "label_granularity_counts": dict(Counter(row["label_granularity"] for row in rows)),
         "candidate_pool_miss_count": sum(1 for row in rows if not row["candidate_pool_contains_relevant"]),
-        "metric_deduplication": "document/page/chunk label identity before metric calculation",
+        "metric_deduplication": "document/page/section/chunk label identity before metric calculation",
         "missed_queries_top5": [
             {
                 "query_id": row["query_id"],
@@ -236,7 +246,7 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
     }
     report["limitations"].extend([
         "Retrieval mode requires a live Pinecone index populated by the ingestion/OCR/layout/embedding pipeline.",
-        "Document-level labels are weaker than page-level or chunk-level labels; metric interpretation depends on manifest label granularity.",
+        "Document-level labels are weaker than section-level, page-level, or chunk-level labels; metric interpretation depends on manifest label granularity.",
         "Retrieval metrics deduplicate repeated Pinecone chunks by the active label granularity before scoring.",
         "This is local real-service evidence only and must not be described as production retrieval quality.",
     ])
@@ -554,6 +564,7 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
             f"Strategy: `{retrieval['strategy']}`",
             f"Candidate pool size: `{retrieval['candidate_pool_size']}`",
             f"Top K: `{retrieval['top_k']}`",
+            f"Label granularity counts: `{json.dumps(retrieval.get('label_granularity_counts', {}), sort_keys=True)}`",
             f"Candidate pool misses: `{retrieval['candidate_pool_miss_count']}`",
             "",
             "| Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |",
@@ -817,10 +828,18 @@ def _evaluate_retrieval_query(
     matches: list[dict[str, Any]],
     ingestion_mapping: dict[str, str],
     top_k: int,
+    section_labels_by_document: dict[str, list[dict[str, Any]]] | None = None,
+    document_identity_lookup: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    section_labels_by_document = section_labels_by_document or {}
+    document_identity_lookup = document_identity_lookup or {
+        **{str(manifest_id): str(manifest_id) for manifest_id in ingestion_mapping},
+        **{str(service_id): str(manifest_id) for manifest_id, service_id in ingestion_mapping.items()},
+    }
     target_document_ids = set(query.target_document_ids)
     mapped_target_ids = {ingestion_mapping.get(document_id, document_id) for document_id in target_document_ids}
     relevant_pages = set(query.relevant_pages)
+    relevant_sections = {str(section_id) for section_id in getattr(query, "relevant_sections", [])}
     relevant_chunk_ids = {str(chunk_id) for chunk_id in query.relevant_chunk_ids}
     label_granularity = _label_granularity(query)
     relevant_count = _relevant_count(query)
@@ -841,11 +860,18 @@ def _evaluate_retrieval_query(
             "chunk_id": metadata.get("chunk_id"),
             "text_preview": (metadata.get("text") or "")[:240],
         }
+        result["matched_manifest_document_id"] = _manifest_document_id_for_result(result, document_identity_lookup)
+        result["section_id"] = _section_id_for_page(
+            result["matched_manifest_document_id"],
+            result.get("page"),
+            section_labels_by_document,
+        )
         result["is_relevant"] = _is_relevant_result(
             result,
             target_document_ids,
             mapped_target_ids,
             relevant_pages,
+            relevant_sections,
             relevant_chunk_ids,
             label_granularity,
         )
@@ -869,6 +895,7 @@ def _evaluate_retrieval_query(
         "target_document_ids": query.target_document_ids,
         "mapped_target_document_ids": sorted(mapped_target_ids),
         "relevant_pages": query.relevant_pages,
+        "relevant_sections": sorted(relevant_sections),
         "relevant_chunk_ids": query.relevant_chunk_ids,
         "label_granularity": label_granularity,
         "candidate_pool_contains_relevant": any(result["is_relevant"] for result in all_results),
@@ -878,6 +905,86 @@ def _evaluate_retrieval_query(
         "top_results": top_results,
     }
 
+
+def _section_labels_by_document(documents: list[Any]) -> dict[str, list[dict[str, Any]]]:
+    labels_by_document: dict[str, list[dict[str, Any]]] = {}
+    for document in documents:
+        raw_labels = document.source_metadata.get("sec_section_labels", [])
+        if not isinstance(raw_labels, list):
+            continue
+        normalized = []
+        for raw_label in raw_labels:
+            if not isinstance(raw_label, dict):
+                continue
+            section_id = raw_label.get("section_id")
+            start_page = _coerce_int(raw_label.get("start_page"))
+            if not section_id or start_page is None:
+                continue
+            end_page = _coerce_int(raw_label.get("end_page")) or start_page
+            if end_page < start_page:
+                end_page = start_page
+            normalized.append({
+                "section_id": str(section_id),
+                "section_name": raw_label.get("section_name"),
+                "start_page": start_page,
+                "end_page": end_page,
+                "confidence": raw_label.get("confidence"),
+            })
+        labels_by_document[document.document_id] = normalized
+    return labels_by_document
+
+
+def _document_identity_lookup(documents: list[Any], ingestion_mapping: dict[str, str]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for document in documents:
+        manifest_id = str(document.document_id)
+        for value in [document.document_id, document.filename, Path(document.filename).name]:
+            if value:
+                lookup[str(value)] = manifest_id
+        service_id = ingestion_mapping.get(document.document_id)
+        if service_id:
+            lookup[str(service_id)] = manifest_id
+    return lookup
+
+
+def _manifest_document_id_for_result(result: dict[str, Any], document_identity_lookup: dict[str, str]) -> str | None:
+    for value in [result.get("manifest_document_id"), result.get("doc_id"), result.get("filename")]:
+        if value is None:
+            continue
+        candidate = str(value)
+        if candidate in document_identity_lookup:
+            return document_identity_lookup[candidate]
+        basename = Path(candidate).name
+        if basename in document_identity_lookup:
+            return document_identity_lookup[basename]
+    return None
+
+
+def _section_id_for_page(
+    manifest_document_id: str | None,
+    page: Any,
+    section_labels_by_document: dict[str, list[dict[str, Any]]],
+) -> str | None:
+    page_number = _coerce_int(page)
+    if not manifest_document_id or page_number is None:
+        return None
+    for label in section_labels_by_document.get(manifest_document_id, []):
+        start_page = _coerce_int(label.get("start_page"))
+        end_page = _coerce_int(label.get("end_page")) or start_page
+        if start_page is None or end_page is None:
+            continue
+        if start_page <= page_number <= end_page:
+            return str(label.get("section_id"))
+    return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 def _dedupe_results_for_metrics(results: list[dict[str, Any]], label_granularity: str) -> list[dict[str, Any]]:
     seen: set[tuple[Any, ...]] = set()
@@ -893,54 +1000,76 @@ def _dedupe_results_for_metrics(results: list[dict[str, Any]], label_granularity
 
 def _metric_identity(result: dict[str, Any], label_granularity: str) -> tuple[Any, ...]:
     doc_identity = next(
-        (str(value) for value in [result.get("doc_id"), result.get("manifest_document_id"), result.get("filename")] if value is not None),
+        (
+            str(value)
+            for value in [
+                result.get("matched_manifest_document_id"),
+                result.get("doc_id"),
+                result.get("manifest_document_id"),
+                result.get("filename"),
+            ]
+            if value is not None
+        ),
         str(result.get("id")),
     )
     if label_granularity == "document":
         return ("document", doc_identity)
+    if label_granularity == "section":
+        return ("section", doc_identity, result.get("section_id") or result.get("page"))
     if label_granularity == "page":
         return ("page", doc_identity, result.get("page"))
     chunk_identity = result.get("id") or f"{doc_identity}:{result.get('chunk_id')}"
     return ("chunk", str(chunk_identity))
 
-
 def _label_granularity(query: Any) -> str:
-    if query.relevant_chunk_ids:
+    if getattr(query, "relevant_chunk_ids", []):
         return "chunk"
-    if query.relevant_pages:
+    if getattr(query, "relevant_sections", []):
+        return "section"
+    if getattr(query, "relevant_pages", []):
         return "page"
     return "document"
 
-
 def _relevant_count(query: Any) -> int:
-    if query.relevant_chunk_ids:
-        return len(set(query.relevant_chunk_ids))
-    if query.relevant_pages:
-        return max(1, len(set(query.relevant_pages)))
+    relevant_chunk_ids = getattr(query, "relevant_chunk_ids", [])
+    relevant_sections = getattr(query, "relevant_sections", [])
+    relevant_pages = getattr(query, "relevant_pages", [])
+    if relevant_chunk_ids:
+        return len(set(relevant_chunk_ids))
+    if relevant_sections:
+        return max(1, len(set(query.target_document_ids)) * len(set(relevant_sections)))
+    if relevant_pages:
+        return max(1, len(set(relevant_pages)))
     return max(1, len(set(query.target_document_ids)))
-
 
 def _is_relevant_result(
     result: dict[str, Any],
     target_document_ids: set[str],
     mapped_target_ids: set[str],
     relevant_pages: set[int],
+    relevant_sections: set[str],
     relevant_chunk_ids: set[str],
     label_granularity: str,
 ) -> bool:
     doc_candidates = {
         str(value)
-        for value in [result.get("doc_id"), result.get("manifest_document_id"), result.get("filename")]
+        for value in [
+            result.get("matched_manifest_document_id"),
+            result.get("doc_id"),
+            result.get("manifest_document_id"),
+            result.get("filename"),
+        ]
         if value is not None
     }
     doc_match = bool(doc_candidates & (target_document_ids | mapped_target_ids))
     if label_granularity == "document":
         return doc_match
+    if label_granularity == "section":
+        return doc_match and result.get("section_id") in relevant_sections
     if label_granularity == "page":
-        return doc_match and result.get("page") in relevant_pages
+        return doc_match and _coerce_int(result.get("page")) in relevant_pages
     chunk_candidates = {str(value) for value in [result.get("id"), result.get("chunk_id")] if value is not None}
     return bool(chunk_candidates & relevant_chunk_ids)
-
 
 def _average_metrics(rows: list[dict[str, Any]]) -> dict[str, float]:
     if not rows:

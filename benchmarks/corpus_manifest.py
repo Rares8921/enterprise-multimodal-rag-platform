@@ -38,6 +38,7 @@ class CorpusQuery:
     category: str
     target_document_ids: list[str]
     relevant_pages: list[int]
+    relevant_sections: list[str]
     relevant_chunk_ids: list[str]
     expected_answer_hints: list[str]
     citation_required: bool
@@ -266,6 +267,7 @@ def _parse_query(raw: dict[str, Any], index: int, document_ids: set[str]) -> Cor
         category=_required_string(raw, "category", context),
         target_document_ids=target_document_ids,
         relevant_pages=_int_list(raw.get("relevant_pages", []), f"{context}.relevant_pages"),
+        relevant_sections=_string_list(raw.get("relevant_sections", []), f"{context}.relevant_sections"),
         relevant_chunk_ids=_string_list(raw.get("relevant_chunk_ids", []), f"{context}.relevant_chunk_ids"),
         expected_answer_hints=_string_list(raw.get("expected_answer_hints", []), f"{context}.expected_answer_hints"),
         citation_required=citation_required,

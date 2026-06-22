@@ -33,6 +33,7 @@ def _manifest_payload(**overrides):
                 "category": "legal_clause",
                 "target_document_ids": ["doc_001"],
                 "relevant_pages": [1],
+                "relevant_sections": ["item_1a_risk_factors"],
                 "relevant_chunk_ids": [],
                 "expected_answer_hints": ["notice"],
                 "citation_required": True,
@@ -60,6 +61,7 @@ def test_valid_manifest_loads_with_local_pdf(temp_dir):
 
     assert loaded.manifest.corpus_id == "unit_corpus"
     assert loaded.document_paths["doc_001"].is_file()
+    assert loaded.manifest.queries[0].relevant_sections == ["item_1a_risk_factors"]
     assert loaded.summary()["document_count"] == 1
     assert loaded.warnings == [
         "Manifest mode is private_local; keep PDFs and generated reports out of git by default."
