@@ -1,0 +1,8 @@
+pydantic>=2.12,<3
+pydantic-settings>=2.10,<3
+redis>=5,<9
+prometheus-client>=0.20,<1
+pinecone>=7,<10
+sentence-transformers>=3,<6
+numpy>=1.26,<3
+torch>=2.3,<3

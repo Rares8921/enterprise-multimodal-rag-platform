@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+COPY requirements-worker.txt .
+RUN pip install --upgrade pip && pip install -r requirements-worker.txt
 
 COPY services/ ./services/
 
@@ -26,6 +26,6 @@ RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-WORKDIR /app/services/ingestion
+WORKDIR /app
 
-CMD ["python", "run_worker.py"]
+CMD ["python", "-m", "services.ingestion.run_worker"]

@@ -124,13 +124,15 @@ services:
 
   # Entry point for documents - pushes jobs into Redis queue for async processing
   ingestion:
+    ports:
+      - "8001:8001"
     build:
       context: .
       dockerfile: services/ingestion/Dockerfile
     environment:
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      POSTGRES_URL: ${COMPOSE_POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
+      MINIO_ENDPOINT: ${COMPOSE_MINIO_ENDPOINT:-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       PINECONE_API_KEY: ${PINECONE_API_KEY}
@@ -153,11 +155,13 @@ services:
       context: .
       dockerfile: services/worker.Dockerfile
     environment:
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
+      MINIO_ENDPOINT: ${COMPOSE_MINIO_ENDPOINT:-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
+      PREFER_TEXT_PDF_EXTRACTION: ${PREFER_TEXT_PDF_EXTRACTION:-true}
+      OCR_GPU: ${OCR_GPU:-false}
+      POSTGRES_URL: ${COMPOSE_POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
       ENABLE_WORKERS: "true"
     volumes:
       - ./services:/app/services
@@ -175,7 +179,10 @@ services:
       context: .
       dockerfile: services/layout-parser/Dockerfile
     environment:
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
+      MINIO_ENDPOINT: ${COMPOSE_MINIO_ENDPOINT:-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
     volumes:
       - ./services:/app/services
@@ -192,9 +199,10 @@ services:
       context: .
       dockerfile: services/embedding/Dockerfile
     environment:
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
       PINECONE_API_KEY: ${PINECONE_API_KEY}
       PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
+      PINECONE_INDEX: ${PINECONE_INDEX:-doc-intelligence}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
     volumes:
       - ./services:/app/services
@@ -210,7 +218,7 @@ services:
   mistral:
     image: vllm/vllm-openai:latest
     ports:
-      - "8001:8000"
+      - "8003:8000"
     volumes:
       - ./models:/models
     command: >
@@ -223,7 +231,7 @@ services:
       context: .
       dockerfile: services/llm-orchestrator/Dockerfile
     environment:
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       MISTRAL_API_URL: ${MISTRAL_API_URL:-http://mistral:8000}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
@@ -245,8 +253,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      POSTGRES_URL: ${COMPOSE_POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
       PINECONE_API_KEY: ${PINECONE_API_KEY}
       PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -285,8 +293,8 @@ services:
       context: .
       dockerfile: services/monitoring/Dockerfile
     environment:
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      POSTGRES_URL: ${COMPOSE_POSTGRES_URL:-postgresql+asyncpg://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-doc_intel}}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
     volumes:

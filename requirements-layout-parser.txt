@@ -1,0 +1,10 @@
+pydantic>=2.12,<3
+pydantic-settings>=2.10,<3
+redis>=5,<9
+minio>=7.2,<8
+prometheus-client>=0.20,<1
+pillow>=10,<13
+pdf2image>=1.17,<2
+torch>=2.3,<3
+transformers>=4.41,<6
+numpy>=1.26,<3
