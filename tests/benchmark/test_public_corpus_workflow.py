@@ -7,7 +7,7 @@ import pytest
 from benchmarks.corpus_manifest import load_corpus_manifest, validate_manifest_payload
 from benchmarks.corpus_sources.cuad import prepare_cuad_corpus
 from benchmarks.corpus_sources.sec_edgar import prepare_sec_corpus
-from benchmarks.e2e_document_rag_eval import _git_corpus_safety_checks, preflight, write_json_report, write_markdown_report
+from benchmarks.e2e_document_rag_eval import _git_corpus_safety_checks, answer, preflight, write_json_report, write_markdown_report
 from benchmarks.generate_synthetic_pdf_corpus import generate_synthetic_pdf_corpus
 from benchmarks.promote_document_rag_report import ReportPromotionError, promote_report
 from benchmarks.public_corpus_sources import load_public_source_registry
@@ -181,6 +181,68 @@ def test_preflight_git_safety_rejects_raw_local_reports(monkeypatch):
 
     assert checks[0]["status"] == "fail"
     assert "document_rag_eval_answer_raw.json" in checks[0]["message"]
+
+
+def test_answer_mode_applies_configured_provider_delay(tmp_path, monkeypatch):
+    payload = json.loads(_manifest(tmp_path, mode="synthetic").read_text(encoding="utf-8"))
+    payload["queries"].append({
+        **payload["queries"][0],
+        "query_id": "q2",
+        "query": "What else is tested?",
+    })
+    manifest = tmp_path / "answer_manifest.json"
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    sleeps = []
+
+    def fake_call_answer_query(client, args, headers, query, request_payload):
+        return {
+            "query_id": query.query_id,
+            "category": query.category,
+            "status": "ok",
+            "answer_non_empty": True,
+            "citation_present": True,
+            "citation_required": query.citation_required,
+            "expected_hint_overlap": 1.0,
+            "model_used": "gemini",
+            "tokens_used": 1,
+            "confidence_score": 0.8,
+            "latency_ms": 1.0,
+            "retrieval_count": 1,
+        }
+
+    monkeypatch.setattr("benchmarks.e2e_document_rag_eval._call_answer_query", fake_call_answer_query)
+    monkeypatch.setattr("benchmarks.e2e_document_rag_eval.time.sleep", sleeps.append)
+    args = SimpleNamespace(
+        mode="answer",
+        manifest=manifest,
+        pdf_root=tmp_path / "local_pdfs",
+        skip_file_check=True,
+        ingestion_run=None,
+        api_key=None,
+        bearer_token=None,
+        query_api_url="http://127.0.0.1:9",
+        request_timeout_seconds=0.1,
+        tenant_id="tenant_test",
+        ingestion_url=None,
+        status_url=None,
+        pinecone_index=None,
+        embedding_model=None,
+        answer_top_k=5,
+        model_choice="gemini",
+        agent=None,
+        retrieval_candidate_pool=100,
+        sec_aware_rerank=True,
+        sec_metadata_weight=0.5,
+        answer_disable_target_doc_filter=True,
+        answer_delay_seconds=1.25,
+    )
+
+    report = answer(args)
+
+    assert sleeps == [1.25]
+    assert report["answer"]["query_count"] == 2
+    assert report["answer"]["answer_delay_seconds"] == 1.25
+    assert report["answer"]["failure_count"] == 0
 
 
 def test_synthetic_pdf_manifest_generation_and_labels(tmp_path):

@@ -279,10 +279,12 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
 
     with httpx.Client(timeout=args.request_timeout_seconds) as client:
-        for query in loaded.manifest.queries:
+        for index, query in enumerate(loaded.manifest.queries):
             request_payload = _build_answer_request_payload(args, query, ingestion_mapping, document_types)
             row = _call_answer_query(client, args, headers, query, request_payload)
             rows.append(row)
+            if args.answer_delay_seconds > 0 and index < len(loaded.manifest.queries) - 1:
+                time.sleep(args.answer_delay_seconds)
 
     successful_rows = [row for row in rows if row.get("status") == "ok"]
     report["answer"] = {
@@ -302,6 +304,7 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
         "sec_aware_rerank": args.sec_aware_rerank,
         "sec_metadata_weight": args.sec_metadata_weight if args.sec_aware_rerank else None,
         "target_doc_filter_enabled": not args.answer_disable_target_doc_filter,
+        "answer_delay_seconds": args.answer_delay_seconds,
         "failure_errors": dict(Counter(row.get("error") for row in rows if row.get("status") == "failed" and row.get("error"))),
         "queries": rows,
     }
@@ -309,6 +312,7 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
         "Answer mode may call real LLM providers through the query service and can incur cost depending on local configuration.",
         "Answer evaluation is a lightweight proxy: non-empty answer, citation presence, and expected-hint overlap only.",
         "Expected-hint overlap is not semantic correctness and must not be described as legal or financial accuracy.",
+        "Use --answer-delay-seconds for live providers with request-per-minute limits; delayed runs trade runtime for fewer provider quota failures.",
     ])
     return report
 
@@ -1301,6 +1305,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query-api-url", default=os.getenv("INFERENCE_API_URL", "http://localhost:8000"))
     parser.add_argument("--answer-top-k", type=int, default=5)
     parser.add_argument("--answer-disable-target-doc-filter", action="store_true")
+    parser.add_argument("--answer-delay-seconds", type=float, default=0.0)
     parser.add_argument("--model-choice", default="auto")
     parser.add_argument("--agent", default=None)
     parser.add_argument("--write-csv", action="store_true")
