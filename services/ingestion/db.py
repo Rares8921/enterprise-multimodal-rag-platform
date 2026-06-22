@@ -9,8 +9,14 @@ from .config import Settings
 logger = logging.getLogger(__name__)
 settings = Settings()
 
+def _async_postgres_url(url: str) -> str:
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
 engine = create_async_engine(
-    settings.postgres_url,
+    _async_postgres_url(settings.postgres_url),
     echo=False,
     pool_size=20,
     max_overflow=10,
