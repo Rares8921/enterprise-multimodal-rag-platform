@@ -43,6 +43,7 @@ def _load_hybrid_module():
 
 hybrid_utils = _load_hybrid_module()
 hybrid_rerank = hybrid_utils.hybrid_rerank
+sec_aware_rerank = getattr(hybrid_utils, "sec_aware_rerank", None)
 
 
 def get_git_commit() -> str:
@@ -203,12 +204,23 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
             include_metadata=True,
         )
         matches = _matches_from_pinecone_response(raw_results)
-        reranked = hybrid_rerank(
-            query.query,
-            matches,
-            vector_weight=args.vector_weight,
-            bm25_weight=args.bm25_weight,
-        )
+        if args.sec_aware_rerank:
+            if sec_aware_rerank is None:
+                raise RuntimeError("SEC-aware reranking is unavailable in the hybrid retrieval utility")
+            reranked = sec_aware_rerank(
+                query.query,
+                matches,
+                vector_weight=args.vector_weight,
+                bm25_weight=args.bm25_weight,
+                metadata_weight=args.sec_metadata_weight,
+            )
+        else:
+            reranked = hybrid_rerank(
+                query.query,
+                matches,
+                vector_weight=args.vector_weight,
+                bm25_weight=args.bm25_weight,
+            )
         rows.append(_evaluate_retrieval_query(
             query,
             reranked,
@@ -220,11 +232,13 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
 
     report["retrieval"] = {
         "mode": "pinecone_real_service",
-        "strategy": "pinecone_vector_candidates_plus_bm25_hybrid_rerank",
+        "strategy": "pinecone_vector_candidates_plus_bm25_sec_aware_rerank" if args.sec_aware_rerank else "pinecone_vector_candidates_plus_bm25_hybrid_rerank",
         "top_k": args.top_k,
         "candidate_pool_size": args.retrieval_candidate_pool,
         "vector_weight": args.vector_weight,
         "bm25_weight": args.bm25_weight,
+        "sec_aware_rerank": args.sec_aware_rerank,
+        "sec_metadata_weight": args.sec_metadata_weight if args.sec_aware_rerank else None,
         "ingestion_run": str(args.ingestion_run) if args.ingestion_run else None,
         "overall": _average_metrics(rows),
         "by_category": _category_metrics(rows),
@@ -850,14 +864,23 @@ def _evaluate_retrieval_query(
         result = {
             "rank": rank,
             "id": match.get("id"),
-            "score": match.get("hybrid_score", match.get("score", 0.0)),
+            "score": match.get("sec_aware_score", match.get("hybrid_score", match.get("score", 0.0))),
             "vector_score": match.get("vector_score", match.get("score", 0.0)),
             "bm25_score": match.get("bm25_score", 0.0),
+            "hybrid_score": match.get("hybrid_score"),
+            "sec_aware_score": match.get("sec_aware_score"),
+            "sec_metadata_score": match.get("sec_metadata_score"),
+            "sec_metadata_reasons": match.get("sec_metadata_reasons"),
             "doc_id": metadata.get("doc_id"),
             "manifest_document_id": metadata.get("manifest_document_id"),
             "filename": metadata.get("filename"),
             "page": metadata.get("page"),
             "chunk_id": metadata.get("chunk_id"),
+            "indexed_section_id": metadata.get("section_id"),
+            "indexed_ticker": metadata.get("ticker"),
+            "indexed_accession_number": metadata.get("accession_number"),
+            "indexed_filing_year": metadata.get("filing_year"),
+            "is_table_of_contents": metadata.get("is_table_of_contents"),
             "text_preview": (metadata.get("text") or "")[:240],
         }
         result["matched_manifest_document_id"] = _manifest_document_id_for_result(result, document_identity_lookup)
@@ -1251,6 +1274,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--vector-weight", type=float, default=0.7)
     parser.add_argument("--bm25-weight", type=float, default=0.3)
+    parser.add_argument("--sec-aware-rerank", action="store_true")
+    parser.add_argument("--sec-metadata-weight", type=float, default=0.5)
     parser.add_argument("--query-api-url", default=os.getenv("INFERENCE_API_URL", "http://localhost:8000"))
     parser.add_argument("--answer-top-k", type=int, default=5)
     parser.add_argument("--model-choice", default="auto")

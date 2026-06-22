@@ -379,3 +379,32 @@
 - Enrich existing indexed vectors with public SEC manifest metadata and conservative section labels instead of re-acquiring documents or overwriting the baseline.
 - Add SEC-aware reranking that uses only query-visible facts and indexed metadata: section synonyms, explicit ticker/company, explicit filing date/year/accession, and table-of-contents downranking.
 - Run ablations against the same section manifest and report all results, including regressions.
+
+
+## SEC-Aware Retrieval Reranking
+
+### Completed Work
+
+- Added opt-in SEC-aware reranking that infers only query-visible facts: SEC section, ticker, accession number, and filing year.
+- Added metadata scoring for matching section/ticker/accession/year, plus conservative penalties for table-of-contents chunks, unknown sections, and explicit wrong ticker/year/section metadata.
+- Wired the real-service retrieval evaluator with `--sec-aware-rerank` and `--sec-metadata-weight` flags while preserving the original BM25 hybrid reranker as the baseline.
+- Added retrieval diagnostics to top-result rows for `sec_aware_score`, `sec_metadata_score`, indexed section/ticker/accession/year, and table-of-contents markers.
+- Added deterministic unit coverage for SEC query inference, metadata scoring, and reranking behavior.
+
+### Files Changed
+
+- `services/inference-api/utils/hybrid_retrieval.py`
+- `benchmarks/e2e_document_rag_eval.py`
+- `tests/unit/test_hybrid_retrieval.py`
+- `WORKLOG.md`
+
+### Tests and Checks Run
+
+- `python -m py_compile services\inference-api\utils\hybrid_retrieval.py benchmarks\e2e_document_rag_eval.py`
+- `python -m pytest tests\unit\test_hybrid_retrieval.py tests\benchmark\test_document_rag_eval_metrics.py -q` - 12 passed.
+
+### Remaining Risks and Limitations
+
+- The reranker uses SEC 10-K metadata and should be treated as a benchmark/reranking improvement, not a general legal or financial correctness signal.
+- It can only help when relevant chunks are present in the vector candidate pool.
+- The next step is to run the planned Pinecone ablations before claiming any metric improvement.
