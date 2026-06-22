@@ -120,7 +120,7 @@ The harness supports:
 - `retrieve`: query a configured Pinecone index/namespace, apply the existing BM25 hybrid reranker, and compute Recall@k, MRR, and nDCG when labels are available
 - `answer`: optionally call the query API and record lightweight answer proxy metrics
 
-This harness enables local real-service case-study runs over curated PDF corpora. It does not create a production retrieval-quality claim by itself; a claim about a specific corpus requires a generated report, documented environment, and clear limitations.
+This harness enables local real-service case-study runs over curated PDF corpora. A sanitized SEC EDGAR section-level retrieval report is checked in, but it remains local public-corpus evidence with explicit limitations, not production retrieval-quality evidence.
 
 ## Public Corpus Readiness Flow
 
@@ -208,9 +208,9 @@ Implemented mechanisms include:
 
 ## Current Gaps
 
-- Hybrid retrieval is implemented as BM25 reranking over vector candidates; the included benchmark is synthetic/offline and does not measure Pinecone production behavior.
-- A real-service document RAG harness exists for local PDF corpora, but no checked-in real PDF/Pinecone report is included yet.
-- Public CUAD/SEC acquisition, preflight, synthetic PDF smoke, and report promotion tooling exist, but no real public-corpus evaluation report is checked in yet.
+- Hybrid retrieval is implemented as BM25 reranking over vector candidates; the synthetic benchmark remains offline and separate from the SEC Pinecone report.
+- The checked-in SEC report is section-level only, has low top-k metrics, and does not include chunk-level labels or answer correctness evaluation.
+- Public CUAD acquisition, preflight, synthetic PDF smoke, and report promotion tooling exist, but no CUAD evaluation report is checked in yet.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.
 - The compose stack uses some `latest` images; pinning all runtime images would improve reproducibility.

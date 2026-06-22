@@ -206,7 +206,7 @@
 - Extended `benchmarks/e2e_document_rag_eval.py` so each run writes JSON and Markdown reports by default, with optional CSV output via `--write-csv`.
 - Reports include command, timestamp, git commit, environment summary, manifest path, corpus counts, services used without secrets, mode-specific metrics, per-query rows when available, limitations, and unsupported claims.
 - Validation run: `python -m py_compile benchmarks\e2e_document_rag_eval.py`; validate-only JSON/Markdown/CSV smoke; answer JSON/Markdown smoke against an unreachable local query endpoint.
-- No checked-in real-service report was generated because no curated PDFs, live services, Pinecone credentials, or provider credentials are committed with the repository.
+- At that earlier phase, the document RAG report-generation work was validated only with smoke runs because no curated PDFs, live services, Pinecone credentials, or provider credentials were committed with the repository.
 
 ### Document RAG Documentation Progress
 
@@ -296,3 +296,61 @@
 - Documentation now distinguishes acquisition/readiness tooling from actual public-corpus evaluation results; no CUAD/SEC retrieval metrics are claimed.
 - Validation run: `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 12 passed; `python -m py_compile benchmarks\acquire_public_corpus.py benchmarks\generate_synthetic_pdf_corpus.py benchmarks\promote_document_rag_report.py benchmarks\e2e_document_rag_eval.py benchmarks\corpus_manifest.py benchmarks\public_corpus_sources.py`; synthetic manifest preflight smoke passed. `make -n corpus-generate-synthetic` could not run because `make` is not installed in this Windows environment.
 - Remaining limitation: public corpus acquisition code is documented, but no real CUAD/SEC documents or sanitized public-corpus evaluation reports are committed.
+## SEC Section-Level Retrieval Evaluation Progress
+
+### Completed Work
+
+- Inspected the prior SEC document-level retrieval report and confirmed the main weakness: document-level labels were too coarse, while rank-1 misses often confused adjacent annual filings or returned broad contents/index pages.
+- Added section-aware SEC 10-K labeling support that extracts conservative section/page ranges from rendered public SEC PDFs without storing raw filing text.
+- Added `relevant_sections` manifest support and section-level relevance/deduplication in the real-service retrieval evaluator.
+- Generated and committed `benchmarks/corpora/sec_edgar_section_manifest.generated.json` with 8 public SEC 10-K filings, 29 section-level queries, page ranges, and confidence markers.
+- Ran Pinecone-backed retrieval against namespace `tenant_eval_local` using the existing indexed SEC corpus and promoted a sanitized section-level report.
+- Ran a diagnostic candidate-pool-100 ablation. It reduced candidate-pool misses but worsened top-k metrics, so it is recorded as diagnostic rather than an improvement.
+- Updated the evidence ledger, README, architecture docs, and case study to reflect the bounded SEC section-level result and its limitations.
+
+### Files Changed
+
+- `benchmarks/sec_section_labeler.py`
+- `benchmarks/corpus_manifest.py`
+- `benchmarks/e2e_document_rag_eval.py`
+- `benchmarks/promote_document_rag_report.py`
+- `benchmarks/corpora/sec_edgar_section_manifest.generated.json`
+- `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md`
+- `tests/benchmark/test_sec_section_labeler.py`
+- `tests/benchmark/test_document_rag_eval_metrics.py`
+- `tests/benchmark/test_corpus_manifest.py`
+- `tests/benchmark/test_public_corpus_workflow.py`
+- `README.md`
+- `docs/architecture.md`
+- `docs/case-study.md`
+- `PROJECT_EVIDENCE.md`
+- `WORKLOG.md`
+
+### Tests and Checks Run
+
+- `python -m py_compile benchmarks\sec_section_labeler.py benchmarks\corpus_manifest.py benchmarks\e2e_document_rag_eval.py`
+- `python -m pytest tests\benchmark\test_corpus_manifest.py tests\benchmark\test_document_rag_eval_metrics.py tests\benchmark\test_sec_section_labeler.py -q` - 11 passed.
+- `python -m pytest tests\benchmark\test_sec_section_labeler.py -q` - 3 passed after conservative TOC/range refinements.
+- `python -m py_compile benchmarks\promote_document_rag_report.py`
+- `python -m pytest tests\benchmark\test_public_corpus_workflow.py::test_report_promotion_sanitizes_paths_and_refuses_private tests\benchmark\test_public_corpus_workflow.py::test_report_promotion_preserves_retrieval_granularity_metadata -q` - 2 passed.
+- `python benchmarks\sec_section_labeler.py --manifest benchmarks\corpora\sec_edgar_rendered_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --labels-out benchmarks\corpora\sec_edgar_section_labels.generated.json --manifest-out benchmarks\corpora\sec_edgar_section_manifest.generated.json --overwrite` - generated 29 section labels/queries.
+- `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --run-id sec_section_validate` - passed.
+- `python benchmarks\e2e_document_rag_eval.py retrieve --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_local --pinecone-index $env:PINECONE_INDEX --embedding-model sentence-transformers/all-MiniLM-L6-v2 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --run-id sec_section_retrieve` - produced section-level retrieval report.
+- `python benchmarks\e2e_document_rag_eval.py retrieve --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_local --pinecone-index $env:PINECONE_INDEX --embedding-model sentence-transformers/all-MiniLM-L6-v2 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --run-id sec_section_retrieve_pool100` - diagnostic ablation.
+- `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_sec_section_retrieve.json --output-md benchmarks\corpora\results\sanitized_sec_section_retrieval_summary.md` - promoted sanitized evidence.
+- Manual sanitized-report scan for local paths, secrets, and raw text markers.
+
+### Results
+
+- Previous document-level SEC report: Recall@1 `0.5000`, Recall@3 `1.0000`, Recall@5 `1.0000`, MRR `0.7500`, nDCG@5 `0.8155` over 16 document-level queries.
+- New section-level SEC report: Recall@1 `0.1034`, Recall@3 `0.2759`, Recall@5 `0.3448`, MRR `0.1879`, nDCG@5 `0.2269` over 29 section-level queries.
+- Candidate-pool misses: `13` of 29 for the pool-25 run.
+- Pool-100 diagnostic: Recall@1 `0.0345`, Recall@3 `0.2414`, Recall@5 `0.3103`, MRR `0.1477`, nDCG@5 `0.1887`, candidate-pool misses `6`.
+
+### Remaining Risks and Limitations
+
+- Section labels are approximate and generated from rendered public SEC PDF text with conservative heading extraction; uncertain ranges are single-page medium-confidence labels.
+- Metrics are section-level only. No chunk-level labels, answer correctness labels, legal correctness, or financial correctness are claimed.
+- The run is local real-service evidence over a small public SEC corpus, not production retrieval quality.
+- Top-k section retrieval is weak; contents/index pages and adjacent-year filings remain major failure modes.
+- Raw SEC HTML/PDF files, raw JSON reports, model cache, and local generated labels remain local/ignored unless intentionally sanitized and promoted.

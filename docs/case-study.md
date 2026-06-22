@@ -160,14 +160,20 @@ Current checked-in retrieval report generated from commit: `61fedd9`
 
 Interpretation: on this controlled synthetic fixture, the hybrid variants rank all labeled relevant chunks within top 5 and improve Recall@1 over either single-strategy baseline. This supports only a bounded claim that retrieval behavior is measurable on labeled synthetic fixtures.
 
-No real-service public PDF/Pinecone result is checked into the repository yet. The document RAG harness, public acquisition adapters, synthetic PDF generator, preflight checks, and report promotion tool can support such runs locally, but the current evidence is tooling capability and deterministic validation, not measured production retrieval quality.
+A sanitized real-service public SEC section-level retrieval report is checked in at `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md`. It evaluates 8 public SEC 10-K filings and 29 section-level queries against Pinecone namespace `tenant_eval_local` using the existing vector candidate retrieval plus BM25 reranking path.
+
+| Corpus | Label Granularity | Candidate Pool | Candidate Misses | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 8 public SEC 10-K filings | section | 25 | 13 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 |
+
+Interpretation: this is useful negative evidence. Document-level retrieval had previously found the correct filing within top 5, but section-level evaluation shows the retrieval stack often returns table-of-contents pages, adjacent-year filings, or wrong sections. A diagnostic candidate-pool-100 run reduced candidate-pool misses from 13 to 6, but top-k metrics decreased, so it is not presented as an improvement.
 
 ## 9. Limitations
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates, not as a separate first-stage BM25 index.
-- The retrieval benchmark is synthetic/offline and uses simulated vector scores rather than Pinecone results.
-- The document RAG harness has not been run against a checked-in curated public PDF corpus or live Pinecone index in this repository.
-- CUAD/SEC acquisition code exists, but no real CUAD/SEC documents or reports are committed.
+- The synthetic retrieval benchmark is offline and uses simulated vector scores; the SEC section report is separate local Pinecone-backed evidence.
+- The SEC report is section-level only, uses approximate labels generated from rendered public filings, and does not include chunk-level labels.
+- CUAD acquisition code exists, but no CUAD evaluation report is committed.
 - The LLM benchmark does not call real model providers.
 - Latency numbers are deterministic estimates, not measured provider latency.
 - Quality proxy is not semantic evaluation.
@@ -178,7 +184,7 @@ No real-service public PDF/Pinecone result is checked into the repository yet. T
 
 ## 10. What I Would Improve Next
 
-- Run the document RAG harness against a curated public CUAD/SEC corpus and check in a sanitized, license-compatible report.
+- Improve section-level retrieval by handling table-of-contents chunks, adding section-aware metadata/filtering experiments, and expanding independently reviewed labels.
 - Add a real-provider benchmark mode with opt-in credentials and strict report labeling.
 - Expand retrieval evaluation datasets with more labeled queries and independent label review.
 - Pin container image versions used by Docker Compose.

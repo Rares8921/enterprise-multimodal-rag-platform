@@ -319,7 +319,7 @@ Document RAG corpus reports include:
 
 The current checked-in LLM routing benchmark is mock/synthetic. The current checked-in retrieval benchmark is synthetic/offline and uses simulated vector scores. These reports support reproducibility of the methods, not real production performance.
 
-The curated PDF document RAG harness is implemented, but this repository does not include a checked-in real PDF/Pinecone run. Any local report must be interpreted as environment-specific evidence, not production retrieval quality.
+The curated PDF document RAG harness now includes a checked-in sanitized local real-service SEC EDGAR retrieval report. It is public-corpus, Pinecone-backed, and section-level, but it is still environment-specific evidence and must not be described as production retrieval quality.
 
 Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmark_latest.json`:
 
@@ -331,6 +331,14 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 | hybrid_50_50 | 0.9667 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
 | hybrid_30_70 | 0.9667 | 1.0000 | 1.0000 | 1.0000 | 0.9946 |
 
+Current public SEC section-level retrieval evidence from `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md`:
+
+| Corpus | Queries | Label granularity | Candidate pool | Candidate misses | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 8 public SEC 10-K filings | 29 | section | 25 | 13 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 |
+
+Interpretation: this run is useful because it exposes retrieval weaknesses at section granularity. It does not prove production retrieval quality, legal correctness, financial correctness, or chunk-level retrieval quality.
+
 ## Supported Claims
 
 - The repository contains code for OCR-based document ingestion and LayoutLMv3 layout parsing.
@@ -338,6 +346,7 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - The repository contains a labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies.
 - The repository contains a real-service evaluation harness for curated PDF corpora, supporting manifest validation, ingestion runs, Pinecone-backed retrieval evaluation, optional answer proxy evaluation, and report generation.
 - The repository contains public corpus acquisition tooling for CUAD and SEC EDGAR that generates manifest-compatible corpora while keeping raw files ignored by default.
+- The repository contains a checked-in sanitized SEC EDGAR section-level retrieval report from a local Pinecone-backed run, with low metrics and explicit limitations.
 - The repository contains a public-safe synthetic PDF corpus generator for smoke-testing the PDF ingestion workflow.
 - The repository contains preflight and report-sanitization tooling for safer local document RAG evaluation runs.
 - The repository contains typed, tested LLM routing with cost-aware model selection.
@@ -355,19 +364,19 @@ Current retrieval benchmark evidence from `benchmarks/results/retrieval_benchmar
 - No production security guarantee is claimed.
 - No real LLM answer accuracy is claimed from the mock benchmark.
 - No production retrieval quality or real Pinecone performance is claimed from the synthetic retrieval benchmark.
-- No real PDF corpus result, Pinecone retrieval result, or answer quality result is claimed unless a local run report is generated and reviewed.
+- No real PDF/Pinecone result beyond the checked-in sanitized SEC section-level local report is claimed.
 - No customer/private document evaluation is claimed.
-- No real public CUAD or SEC evaluation result is claimed unless a generated, sanitized, reviewed report exists.
-- No legal or financial correctness is claimed from the synthetic retrieval benchmark or synthetic PDF smoke corpus.
+- No CUAD evaluation result or SEC answer-quality result is claimed.
+- No legal or financial correctness is claimed from the synthetic retrieval benchmark, synthetic PDF smoke corpus, or SEC section-level retrieval report.
 - No claim is made that BM25 is a separate first-stage index; current hybrid retrieval reranks vector candidates with BM25.
 - No LayoutLMv3 production accuracy number is claimed.
 
 ## Known Limitations
 
 - The LLM benchmark is mock/synthetic and uses estimated latency/cost.
-- The retrieval benchmark is synthetic/offline and uses simulated vector scores, not Pinecone measurements.
-- The document RAG harness has not been run against a committed real PDF corpus in this repository.
-- Public acquisition tooling has not downloaded or evaluated real CUAD/SEC documents in this repository state.
+- The synthetic retrieval benchmark is offline and uses simulated vector scores; the SEC report is a separate local Pinecone-backed run.
+- The committed SEC report is section-level only and has low top-k metrics, including 13 candidate-pool misses out of 29 queries.
+- Public acquisition tooling has not produced a committed CUAD evaluation result in this repository state.
 - SEC filings are often HTML and may need local rendering/conversion before PDF ingestion.
 - Hybrid retrieval is currently a reranking layer over vector candidates, not a separate first-stage BM25 index.
 - Some Docker Compose images use `latest`, which weakens environment reproducibility.

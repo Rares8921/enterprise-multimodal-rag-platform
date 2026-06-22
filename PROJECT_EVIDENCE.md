@@ -67,7 +67,7 @@ Validation:
 
 Limitations:
 - BM25 is used as a reranker over vector candidates, not as a separate first-stage index.
-- Retrieval-quality evidence is synthetic/offline and uses a simulated vector scoring proxy, not live Pinecone retrieval.
+- Synthetic retrieval benchmark evidence uses a simulated vector scoring proxy. Live Pinecone evidence is limited to the small public SEC section-level run documented below and must not be generalized to production retrieval quality.
 
 Claim:
 Added a labeled synthetic retrieval benchmark comparing vector-only, BM25-only, and hybrid reranking strategies using Recall@k, MRR, and nDCG.
@@ -120,9 +120,8 @@ Validation:
 - `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\example_manifest.json --skip-file-check --query-api-url http://127.0.0.1:9 --request-timeout-seconds 1 --output-dir $env:TEMP\document-rag-eval --run-id report_answer`
 
 Limitations:
-- No real local PDF corpus run is committed.
+- The checked-in public SEC report is a small local real-service run, not production evidence.
 - Ingest, retrieve, and answer modes require local services, credentials, and PDFs.
-- No Pinecone-backed retrieval metrics are claimed yet from a real PDF corpus.
 - Answer mode is a lightweight proxy and does not prove semantic correctness, legal correctness, financial correctness, or provider accuracy.
 
 Claim:
@@ -146,8 +145,8 @@ Validation:
 - SEC fetch mode fails clearly when `SEC_USER_AGENT` is missing.
 
 Limitations:
-- No real CUAD or SEC documents were downloaded or committed.
-- No public-corpus ingestion, Pinecone retrieval, or answer evaluation result is claimed.
+- No raw CUAD or SEC documents are committed.
+- A small SEC public-corpus retrieval report exists only as a sanitized local real-service summary; no CUAD, answer-quality, or provider-backed result is claimed.
 - CUAD source/license terms must be reviewed before redistributing raw files or selected reports.
 - SEC HTML filings may require local rendering/conversion before PDF ingestion.
 
@@ -195,6 +194,36 @@ Limitations:
 - Preflight checks readiness only; they do not prove service correctness, retrieval quality, or production readiness.
 - Sanitized report promotion still requires human review before a report is selected as public evidence.
 
+Claim:
+Evaluated Pinecone-backed retrieval over 8 public SEC 10-K filings with section-level metrics using Recall@k, MRR, and nDCG.
+
+Evidence:
+The public SEC filings were acquired/rendered locally, processed through the ingestion/OCR/layout/embedding pipeline, indexed into Pinecone namespace `tenant_eval_local`, and evaluated with a section-labeled manifest. The sanitized checked-in report records 29 section-level queries, candidate pool size 25, hybrid reranking over Pinecone vector candidates, candidate-pool misses, and section-level retrieval metrics.
+
+Files:
+- `benchmarks/sec_section_labeler.py`
+- `benchmarks/corpora/sec_edgar_section_manifest.generated.json`
+- `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md`
+- `benchmarks/e2e_document_rag_eval.py`
+- `benchmarks/promote_document_rag_report.py`
+- `tests/benchmark/test_sec_section_labeler.py`
+- `tests/benchmark/test_document_rag_eval_metrics.py`
+- `tests/benchmark/test_public_corpus_workflow.py`
+
+Validation:
+- Section label generation: `python benchmarks\sec_section_labeler.py --manifest benchmarks\corpora\sec_edgar_rendered_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --labels-out benchmarks\corpora\sec_edgar_section_labels.generated.json --manifest-out benchmarks\corpora\sec_edgar_section_manifest.generated.json --overwrite`.
+- Manifest validation: `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --run-id sec_section_validate`.
+- Retrieval evaluation: `python benchmarks\e2e_document_rag_eval.py retrieve --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_local --pinecone-index $env:PINECONE_INDEX --embedding-model sentence-transformers/all-MiniLM-L6-v2 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --run-id sec_section_retrieve`.
+- Sanitized report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_sec_section_retrieve.json --output-md benchmarks\corpora\results\sanitized_sec_section_retrieval_summary.md`.
+- Result in sanitized report: 8 documents, 29 section-level queries, candidate pool misses `13`, Recall@1 `0.1034`, Recall@3 `0.2759`, Recall@5 `0.3448`, MRR `0.1879`, nDCG@5 `0.2269`.
+- Diagnostic pool-100 ablation was also run locally and reduced candidate-pool misses from `13` to `6`, but top-k metrics decreased: Recall@1 `0.0345`, Recall@3 `0.2414`, Recall@5 `0.3103`, MRR `0.1477`, nDCG@5 `0.1887`.
+
+Limitations:
+- This is a local real-service public-corpus evaluation, not production retrieval quality.
+- Labels are generated from rendered SEC PDF text with conservative regex section heading extraction; uncertain ranges are collapsed and marked with lower confidence.
+- Metrics are section-level only. Page ranges support section labels, but no chunk-level labels or answer correctness labels are claimed.
+- Raw SEC HTML/PDF files and raw local JSON reports are not committed.
+- Results do not prove legal correctness, financial correctness, customer data behavior, uptime, QPS, SLA, cost savings, or provider/model accuracy.
 Claim:
 The project implements typed, cost-aware LLM routing and orchestration.
 
@@ -350,6 +379,6 @@ Limitations:
 - Do not claim BM25 is a separate first-stage retrieval index; current BM25 support is candidate reranking.
 - Do not claim LayoutLMv3 production accuracy; no validated accuracy report is included.
 - Do not claim production retrieval quality or real Pinecone performance from the synthetic offline retrieval benchmark.
-- Do not claim the document RAG harness has produced real PDF/Pinecone results until a real-service report exists.
+- Do not claim real PDF/Pinecone results beyond the checked-in local public SEC section-level report and its exact limitations.
 - Do not claim customer/private document evaluation.
 - Do not claim the synthetic retrieval benchmark proves legal or financial correctness.
