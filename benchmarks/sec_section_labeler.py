@@ -142,12 +142,12 @@ def extract_section_labels_from_pages(pages: list[str]) -> list[dict[str, Any]]:
     labels: list[dict[str, Any]] = []
     for index, item in enumerate(found):
         start_page = item["start_page"]
-        next_start = found[index + 1]["start_page"] if index + 1 < len(found) else page_count + 1
-        end_page = next_start - 1 if next_start > start_page else start_page
+        end_page = _conservative_end_page(item, found[index + 1] if index + 1 < len(found) else None, page_count)
+        confidence = "high" if end_page > start_page or item["section_id"] == "item_9a_controls" else "medium"
         labels.append({
             **item,
             "end_page": min(end_page, page_count),
-            "confidence": "high",
+            "confidence": confidence,
             "method": "regex_heading_in_rendered_pdf_text",
             "limitations": LIMITATIONS,
         })
@@ -242,10 +242,13 @@ def _normalize_text(text: str) -> str:
 
 def _looks_like_table_of_contents(text: str) -> bool:
     normalized = _normalize_text(text).lower()
-    if "table of contents" not in normalized[:2000]:
-        return False
-    item_count = len(re.findall(r"\bitem\s+\d", normalized))
-    return item_count >= 4
+    item_count = len(re.findall(r"\bitem\s+\d+[a-z]?\.?\b", normalized))
+    if "table of contents" in normalized[:2000] and item_count >= 3:
+        return True
+    # Some rendered SEC filings split the table of contents across pages without
+    # repeating the words "Table of Contents". A dense list of item headings is
+    # safer to skip than to treat as a section start.
+    return item_count >= 6
 
 
 def _section_order(section_id: str) -> int:
@@ -253,6 +256,21 @@ def _section_order(section_id: str) -> int:
         if spec.section_id == section_id:
             return index
     return len(SECTION_SPECS)
+
+
+def _conservative_end_page(current: dict[str, Any], next_item: dict[str, Any] | None, page_count: int) -> int:
+    start_page = current["start_page"]
+    current_order = _section_order(current["section_id"])
+    if next_item is None:
+        return page_count if current["section_id"] == "item_9a_controls" else start_page
+
+    next_start = next_item["start_page"]
+    if next_start <= start_page:
+        return start_page
+    next_order = _section_order(next_item["section_id"])
+    if next_order == current_order + 1:
+        return next_start - 1
+    return start_page
 
 
 def _write_json(path: Path, payload: dict[str, Any], overwrite: bool) -> None:
