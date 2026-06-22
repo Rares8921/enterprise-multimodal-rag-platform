@@ -11,8 +11,10 @@ import redis.asyncio as aioredis
 # Ensure local imports work when running as a script in Docker
 HERE = Path(__file__).resolve().parent
 SERVICES_DIR = HERE.parent
+REPO_ROOT = SERVICES_DIR.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(SERVICES_DIR))
+sys.path.insert(0, str(REPO_ROOT))
 
 from config import Settings
 from EmbeddingGenerator import EmbeddingGenerator
@@ -41,6 +43,32 @@ start_http_server(int(os.getenv("METRICS_PORT", "9102")))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _chunk_full_text(text: str, chunk_size: int, overlap: int) -> list[dict]:
+    """Fallback chunking for text-only PDF extraction paths."""
+    words = text.split()
+    if not words:
+        return []
+
+    chunk_size = max(1, chunk_size)
+    overlap = max(0, min(overlap, chunk_size - 1))
+    step = max(1, chunk_size - overlap)
+    chunks = []
+
+    for start in range(0, len(words), step):
+        chunk_words = words[start:start + chunk_size]
+        if not chunk_words:
+            continue
+        chunks.append({
+            'text': ' '.join(chunk_words),
+            'page': 1,
+            'type': 'full_text_fallback',
+        })
+        if start + chunk_size >= len(words):
+            break
+
+    return chunks
 
 
 async def process_embedding(embedding_gen: EmbeddingGenerator, vector_store: VectorStore, task_data: dict):
@@ -73,8 +101,12 @@ async def process_embedding(embedding_gen: EmbeddingGenerator, vector_store: Vec
             full_text_raw = ocr_data.get(b'full_text', ocr_data.get('full_text', b''))
             full_text = full_text_raw.decode('utf-8') if isinstance(full_text_raw, bytes) else full_text_raw
 
-            # chunking doc
+            # Chunk from layout structures first; fall back to full text when the layout
+            # worker used the text-only path for rendered or digitally-native PDFs.
             chunks = embedding_gen.chunk_document(full_text, layout_structure)
+            if not chunks and full_text.strip():
+                chunks = _chunk_full_text(full_text, settings.chunk_size, settings.chunk_overlap)
+                logger.info(f"Using full-text fallback chunking for document {doc_id}")
 
             if not chunks:
                 logger.warning(f"No valid chunks generated for document {doc_id}")

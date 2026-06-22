@@ -15,7 +15,7 @@ class OCREngine:
 
         logger.info(f"Initializing EasyOCR with languages: {langs}")
         # Let EasyOCR automatically detect and use GPU if available
-        self.reader = easyocr.Reader(langs, gpu=True)
+        self.reader = easyocr.Reader(langs, gpu=getattr(settings, "ocr_gpu", False))
 
     def _extract_text(self, image: Image.Image) -> str:
         # WARN: synchronous function

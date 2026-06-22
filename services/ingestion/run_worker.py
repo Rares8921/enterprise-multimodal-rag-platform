@@ -31,7 +31,7 @@ async def main() -> None:
         secure=False,
     )
 
-    ocr_engine = OCREngine(settings)
+    ocr_engine = None if settings.prefer_text_pdf_extraction else OCREngine(settings)
 
     worker_manager = WorkerManager(task_queue, redis_client, minio_client, ocr_engine, settings)
     await worker_manager.start()

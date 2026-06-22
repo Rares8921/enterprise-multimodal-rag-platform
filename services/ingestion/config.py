@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     ocr_engine: str = "easyocr"
     ocr_languages: str = "eng"
     ocr_dpi: int = 300
+    prefer_text_pdf_extraction: bool = True
+    ocr_gpu: bool = False
 
     # Processing
     max_file_size_mb: int = 100

@@ -1,14 +1,17 @@
 import asyncio
+import json
 import logging
 import os
 import tempfile
 from datetime import datetime
+from typing import Any
 from PIL import Image
 from pdf2image import pdfinfo_from_path, convert_from_path
 from sqlalchemy import select
 
 from .models import Document, DocumentStatus
 from .db import get_worker_db
+from .ocr_engine import OCREngine
 from prometheus_client import Counter, Histogram
 
 logger = logging.getLogger(__name__)
@@ -25,7 +28,6 @@ async def process_document_task(task: dict, redis_client, minio_client, ocr_engi
 
     logger.info(f"Starting processing for document {doc_id}")
 
-    # Update status to PROCESSING
     await redis_client.hset(f"doc:{doc_id}", "status", DocumentStatus.PROCESSING.value)
     async with get_worker_db() as db:
         doc = await db.get(Document, doc_id)
@@ -35,7 +37,6 @@ async def process_document_task(task: dict, redis_client, minio_client, ocr_engi
 
     try:
         with OCR_DURATION.time():
-            # Download from MinIO to a temporary file (Safe streaming)
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp_file:
                 response = minio_client.get_object(settings.minio_bucket, object_name)
                 for chunk in response.stream(32768):
@@ -44,53 +45,66 @@ async def process_document_task(task: dict, redis_client, minio_client, ocr_engi
 
             try:
                 pages_text = []
+                extraction_method = "easyocr"
 
-                # Process based on file type (Batching for PDFs)
-                if filename.lower().endswith('.pdf'):
+                if filename.lower().endswith('.pdf') and getattr(settings, "prefer_text_pdf_extraction", True):
+                    native_pages = _extract_pdf_text_pages(tmp_path)
+                    if native_pages:
+                        pages_text = native_pages
+                        extraction_method = "pdf_text_extraction"
+
+                if not pages_text and filename.lower().endswith('.pdf'):
+                    if ocr_engine is None:
+                        ocr_engine = OCREngine(settings)
                     info = pdfinfo_from_path(tmp_path)
                     total_pages = info["Pages"]
-                    batch_size = 5  # Configurable batch size for memory safety
+                    batch_size = 5
 
                     for start_page in range(1, total_pages + 1, batch_size):
                         end_page = min(start_page + batch_size - 1, total_pages)
-                        images = convert_from_path(tmp_path, first_page=start_page, last_page=end_page,
-                                                   dpi=settings.ocr_dpi)
+                        images = convert_from_path(
+                            tmp_path,
+                            first_page=start_page,
+                            last_page=end_page,
+                            dpi=settings.ocr_dpi,
+                        )
 
                         for i, image in enumerate(images):
                             text = await ocr_engine.process_image(image)
                             pages_text.append({
                                 'page_number': start_page + i,
                                 'text': text,
-                                'word_count': len(text.split())
+                                'word_count': len(text.split()),
                             })
-                else:
-                    # Image processing
+                elif not pages_text:
+                    if ocr_engine is None:
+                        ocr_engine = OCREngine(settings)
                     image = Image.open(tmp_path)
                     text = await ocr_engine.process_image(image)
                     pages_text.append({
                         'page_number': 1,
                         'text': text,
-                        'word_count': len(text.split())
+                        'word_count': len(text.split()),
                     })
 
                 ocr_result = {
                     'total_pages': len(pages_text),
                     'pages': pages_text,
-                    'full_text': '\n\n'.join([p['text'] for p in pages_text])
+                    'full_text': '\n\n'.join([p['text'] for p in pages_text]),
+                    'extraction_method': extraction_method,
                 }
             finally:
-                # Cleanup temp file
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
 
-        # Save results to Redis
         await redis_client.hset(f"doc:{doc_id}:ocr", mapping={
             'total_pages': ocr_result['total_pages'],
             'word_count': sum(p['word_count'] for p in ocr_result['pages']),
-            'full_text': ocr_result['full_text']
+            'full_text': ocr_result['full_text'],
+            'pages': json.dumps(ocr_result['pages']),
+            'extraction_method': ocr_result['extraction_method'],
         })
 
-        # Update status to OCR_COMPLETE
         await redis_client.hset(f"doc:{doc_id}", "status", DocumentStatus.OCR_COMPLETE.value)
         async with get_worker_db() as db:
             doc = await db.get(Document, doc_id)
@@ -100,7 +114,10 @@ async def process_document_task(task: dict, redis_client, minio_client, ocr_engi
                 doc.updated_at = datetime.utcnow()
 
         DOCUMENTS_PROCESSED.labels(status='success').inc()
-        logger.info(f"Document {doc_id} OCR completed: {ocr_result['total_pages']} pages")
+        logger.info(
+            f"Document {doc_id} OCR stage completed via {ocr_result['extraction_method']}: "
+            f"{ocr_result['total_pages']} pages"
+        )
         return ocr_result
 
     except Exception as e:
@@ -118,6 +135,28 @@ async def process_document_task(task: dict, redis_client, minio_client, ocr_engi
         DOCUMENTS_PROCESSED.labels(status='failed').inc()
         raise
 
+
+def _extract_pdf_text_pages(path: str) -> list[dict[str, Any]]:
+    try:
+        from pypdf import PdfReader
+    except Exception:
+        return []
+
+    pages: list[dict[str, Any]] = []
+    try:
+        reader = PdfReader(path)
+        for page_number, page in enumerate(reader.pages, start=1):
+            text = (page.extract_text() or "").strip()
+            if text:
+                pages.append({
+                    "page_number": page_number,
+                    "text": text,
+                    "word_count": len(text.split()),
+                })
+    except Exception as exc:
+        logger.warning(f"Text-native PDF extraction failed for {path}: {exc}")
+        return []
+    return pages
 
 async def worker_loop(worker_id: int, task_queue, redis_client, minio_client, ocr_engine, settings):
     logger.info(f"Worker {worker_id} started")
