@@ -11,6 +11,7 @@ from benchmarks.e2e_document_rag_eval import preflight, write_json_report, write
 from benchmarks.generate_synthetic_pdf_corpus import generate_synthetic_pdf_corpus
 from benchmarks.promote_document_rag_report import ReportPromotionError, promote_report
 from benchmarks.public_corpus_sources import load_public_source_registry
+from benchmarks.render_sec_html_to_pdf import render_sec_html_manifest_to_pdf
 
 
 def test_public_source_registry_schema():
@@ -168,6 +169,70 @@ def test_synthetic_pdf_manifest_generation_and_labels(tmp_path):
     assert all(query.relevant_pages for query in loaded.manifest.queries)
 
 
+def test_sec_html_rendering_generates_rendered_manifest(tmp_path):
+    pdf_root = tmp_path / "local_pdfs"
+    source_dir = pdf_root / "sec_edgar"
+    source_dir.mkdir(parents=True)
+    (source_dir / "sample.htm").write_text(
+        "<html><head><style>ignored</style></head><body><h1>Risk Factors</h1><p>Revenue and liquidity risk are disclosed.</p></body></html>",
+        encoding="utf-8",
+    )
+    source_manifest = tmp_path / "sec_manifest.json"
+    source_manifest.write_text(json.dumps({
+        "corpus_id": "sec_test",
+        "corpus_name": "SEC Test",
+        "mode": "public",
+        "source_metadata": {"source_id": "sec_edgar", "source_format": "html"},
+        "documents": [
+            {
+                "document_id": "sec_test_doc",
+                "filename": "sec_edgar/sample.htm",
+                "doc_type": "financial_report",
+                "source_type": "public_sec_edgar",
+                "source_note": "SEC test filing; source_format=html",
+                "source_metadata": {
+                    "source_id": "sec_edgar",
+                    "ticker": "TEST",
+                    "accession_number": "0000000000-26-000001",
+                    "form_type": "10-K",
+                    "filing_date": "2026-01-01",
+                    "source_url": "https://www.sec.gov/example",
+                    "source_format": "html",
+                },
+                "allowed_to_commit": False,
+            }
+        ],
+        "queries": [
+            {
+                "query_id": "q1",
+                "query": "What risk is disclosed?",
+                "category": "sec_risk_factors_template",
+                "target_document_ids": ["sec_test_doc"],
+                "relevant_pages": [],
+                "relevant_chunk_ids": [],
+                "expected_answer_hints": ["risk"],
+                "citation_required": True,
+            }
+        ],
+    }), encoding="utf-8")
+
+    manifest_out = tmp_path / "rendered_manifest.json"
+    report = render_sec_html_manifest_to_pdf(
+        source_manifest=source_manifest,
+        pdf_root=pdf_root,
+        output_pdf_dir=pdf_root / "sec_edgar_rendered",
+        manifest_out=manifest_out,
+        overwrite=True,
+    )
+    loaded = load_corpus_manifest(manifest_out, pdf_root=pdf_root, require_files=True)
+    rendered_doc = loaded.manifest.documents[0]
+    assert report["document_count"] == 1
+    assert rendered_doc.source_format == "rendered_pdf"
+    assert rendered_doc.filename == "sec_edgar_rendered/sec_test_doc.pdf"
+    assert rendered_doc.source_metadata["original_source_format"] == "html"
+    assert rendered_doc.source_metadata["rendered_format"] == "pdf"
+    assert rendered_doc.page_count and rendered_doc.page_count >= 1
+
 def test_report_promotion_sanitizes_paths_and_refuses_private(tmp_path):
     synthetic_report = {
         "mode": "validate-only",
@@ -254,3 +319,4 @@ def _preflight_args(tmp_path: Path, manifest: Path, *, target: str, skip_file_ch
         tenant_id="tenant_test",
         embedding_model="sentence-transformers/all-mpnet-base-v2",
     )
+
