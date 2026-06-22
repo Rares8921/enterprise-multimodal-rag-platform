@@ -1,6 +1,6 @@
 import json
 
-from benchmarks.sec_metadata_enrichment import enrich_metadata, is_table_of_contents_chunk, section_for_page
+from benchmarks.sec_metadata_enrichment import delete_namespace_if_exists, enrich_metadata, is_table_of_contents_chunk, section_for_page
 
 
 def _lookup():
@@ -103,3 +103,24 @@ def test_enriched_metadata_is_json_serializable():
     enriched = enrich_metadata({"doc_id": "service-a", "page": 12, "text": "risk"}, _lookup())
 
     json.dumps(enriched)
+
+def test_delete_namespace_if_exists_tolerates_missing_namespace():
+    class MissingNamespaceIndex:
+        def delete(self, *, delete_all, namespace):
+            raise Exception("Namespace not found: tenant_eval_sec_sections_v2")
+
+    assert delete_namespace_if_exists(MissingNamespaceIndex(), "tenant_eval_sec_sections_v2") is False
+
+
+def test_delete_namespace_if_exists_reports_success():
+    class ExistingNamespaceIndex:
+        def __init__(self):
+            self.calls = []
+
+        def delete(self, *, delete_all, namespace):
+            self.calls.append((delete_all, namespace))
+
+    index = ExistingNamespaceIndex()
+
+    assert delete_namespace_if_exists(index, "tenant_eval_sec_sections_v2") is True
+    assert index.calls == [(True, "tenant_eval_sec_sections_v2")]

@@ -263,6 +263,17 @@ def _load_pinecone_index(index_name: str):
     return Pinecone(api_key=api_key).Index(index_name)
 
 
+def delete_namespace_if_exists(index: Any, namespace: str) -> bool:
+    try:
+        index.delete(delete_all=True, namespace=namespace)
+        return True
+    except Exception as exc:
+        message = str(exc).lower()
+        if "namespace not found" in message or "not found" in message or "404" in message:
+            return False
+        raise
+
+
 def write_report(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -288,8 +299,9 @@ def main() -> None:
     ingestion_mapping = load_ingestion_mapping(args.ingestion_run)
     document_lookup = build_document_lookup(args.manifest, ingestion_mapping)
     index = _load_pinecone_index(args.pinecone_index)
+    target_deleted = False
     if args.overwrite_namespace and not args.dry_run:
-        index.delete(delete_all=True, namespace=args.target_namespace)
+        target_deleted = delete_namespace_if_exists(index, args.target_namespace)
     stats = reindex_namespace(
         index=index,
         document_lookup=document_lookup,
@@ -308,7 +320,7 @@ def main() -> None:
         "source_namespace": args.source_namespace,
         "target_namespace": args.target_namespace,
         "dry_run": args.dry_run,
-        "overwrote_target_namespace": bool(args.overwrite_namespace and not args.dry_run),
+        "overwrote_target_namespace": target_deleted,
         "metadata_fields_added": [
             "manifest_document_id",
             "document_id",
