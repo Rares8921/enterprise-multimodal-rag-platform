@@ -266,6 +266,44 @@ def test_report_promotion_sanitizes_paths_and_refuses_private(tmp_path):
     with pytest.raises(ReportPromotionError):
         promote_report(report_path, output_markdown=tmp_path / "private.md")
 
+def test_report_promotion_preserves_retrieval_granularity_metadata(tmp_path):
+    report = {
+        "mode": "retrieve",
+        "timestamp_utc": "2026-01-01T00:00:00+00:00",
+        "git_commit": "abc123",
+        "corpus": {
+            "mode": "public",
+            "corpus_id": "sec_public_test",
+            "corpus_name": "SEC Public Test",
+            "document_count": 2,
+            "query_count": 2,
+        },
+        "retrieval": {
+            "strategy": "pinecone_vector_candidates_plus_bm25_hybrid_rerank",
+            "candidate_pool_size": 25,
+            "top_k": 5,
+            "label_granularity_counts": {"section": 2},
+            "candidate_pool_miss_count": 1,
+            "overall": {"recall@1": 0.5, "recall@3": 1.0, "recall@5": 1.0, "mrr": 0.75, "ndcg@5": 0.8},
+            "queries": [{"query_id": "q1", "query": "sensitive query", "top_results": [{"text_preview": "raw text"}]}],
+        },
+        "limitations": ["local only"],
+        "unsupported_claims": ["production quality"],
+    }
+    report_path = tmp_path / "retrieval_report.json"
+    output_md = tmp_path / "sanitized.md"
+    output_json = tmp_path / "sanitized.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    promote_report(report_path, output_markdown=output_md, output_json=output_json)
+
+    sanitized = json.loads(output_json.read_text(encoding="utf-8"))
+    markdown = output_md.read_text(encoding="utf-8")
+    assert sanitized["retrieval"]["label_granularity_counts"] == {"section": 2}
+    assert sanitized["retrieval"]["queries"][0]["query"] == "[removed-query-text]"
+    assert sanitized["retrieval"]["queries"][0]["top_results"][0]["text_preview"] == "[removed-content-field]"
+    assert 'Label granularity counts: `{"section": 2}`' in markdown
+    assert "Candidate pool misses: `1`" in markdown
 
 def _manifest(tmp_path: Path, *, mode: str) -> Path:
     payload = {

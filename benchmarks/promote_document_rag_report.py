@@ -149,9 +149,16 @@ def _markdown_summary(report: dict[str, Any]) -> str:
         "",
     ]
     if "retrieval" in report:
-        metrics = report["retrieval"].get("overall", {})
+        retrieval = report["retrieval"]
+        metrics = retrieval.get("overall", {})
         lines.extend([
             "## Retrieval Metrics",
+            "",
+            f"Strategy: `{retrieval.get('strategy', 'unknown')}`",
+            f"Candidate pool size: `{retrieval.get('candidate_pool_size', 'unknown')}`",
+            f"Top K: `{retrieval.get('top_k', 'unknown')}`",
+            f"Label granularity counts: `{json.dumps(retrieval.get('label_granularity_counts', {}), sort_keys=True)}`",
+            f"Candidate pool misses: `{retrieval.get('candidate_pool_miss_count', 'unknown')}`",
             "",
             "| Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |",
             "|---:|---:|---:|---:|---:|",
