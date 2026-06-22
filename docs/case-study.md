@@ -160,19 +160,20 @@ Current checked-in retrieval report generated from commit: `61fedd9`
 
 Interpretation: on this controlled synthetic fixture, the hybrid variants rank all labeled relevant chunks within top 5 and improve Recall@1 over either single-strategy baseline. This supports only a bounded claim that retrieval behavior is measurable on labeled synthetic fixtures.
 
-A sanitized real-service public SEC section-level retrieval report is checked in at `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md`. It evaluates 8 public SEC 10-K filings and 29 section-level queries against Pinecone namespace `tenant_eval_local` using the existing vector candidate retrieval plus BM25 reranking path.
+Sanitized real-service public SEC section-level retrieval reports are checked in at `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md` and `benchmarks/corpora/results/sanitized_sec_section_retrieval_v2_summary.md`. They evaluate 8 public SEC 10-K filings and 29 section-level queries. The v2 run enriches Pinecone chunk metadata in namespace `tenant_eval_sec_sections_v2` and uses opt-in SEC-aware reranking over vector candidates.
 
-| Corpus | Label Granularity | Candidate Pool | Candidate Misses | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |
+| Run | Namespace | Candidate Pool | Candidate Misses | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| 8 public SEC 10-K filings | section | 25 | 13 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 |
+| Section baseline | `tenant_eval_local` | 25 | 13 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 |
+| Section metadata + SEC-aware rerank | `tenant_eval_sec_sections_v2` | 100 | 6 | 0.7586 | 0.7931 | 0.7931 | 0.7759 | 0.7804 |
 
-Interpretation: this is useful negative evidence. Document-level retrieval had previously found the correct filing within top 5, but section-level evaluation shows the retrieval stack often returns table-of-contents pages, adjacent-year filings, or wrong sections. A diagnostic candidate-pool-100 run reduced candidate-pool misses from 13 to 6, but top-k metrics decreased, so it is not presented as an improvement.
+Interpretation: document-level retrieval previously showed that the correct filing could usually be found, but section-level evaluation exposed table-of-contents, adjacent-year, and wrong-section failures. The v2 result shows that section-aware indexed metadata plus SEC-aware reranking materially improves this controlled local benchmark, with no Recall@5 regressions in the 29-query comparison. It is still local section-level evidence, not production retrieval quality or legal/financial correctness.
 
 ## 9. Limitations
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates, not as a separate first-stage BM25 index.
 - The synthetic retrieval benchmark is offline and uses simulated vector scores; the SEC section report is separate local Pinecone-backed evidence.
-- The SEC report is section-level only, uses approximate labels generated from rendered public filings, and does not include chunk-level labels.
+- The SEC reports are section-level only, use approximate labels generated from rendered public filings, and do not include chunk-level labels.
 - CUAD acquisition code exists, but no CUAD evaluation report is committed.
 - The LLM benchmark does not call real model providers.
 - Latency numbers are deterministic estimates, not measured provider latency.
@@ -184,7 +185,7 @@ Interpretation: this is useful negative evidence. Document-level retrieval had p
 
 ## 10. What I Would Improve Next
 
-- Improve section-level retrieval by handling table-of-contents chunks, adding section-aware metadata/filtering experiments, and expanding independently reviewed labels.
+- Reduce the remaining SEC candidate-pool misses, add independently reviewed page/chunk labels, and test whether section metadata generalizes beyond the small 8-filing corpus.
 - Add a real-provider benchmark mode with opt-in credentials and strict report labeling.
 - Expand retrieval evaluation datasets with more labeled queries and independent label review.
 - Pin container image versions used by Docker Compose.

@@ -62,13 +62,13 @@ flowchart LR
   Cache -->|hit| Resp["Return cached response"]
   Cache -->|miss| Emb["Encode query"]
   Emb --> Pinecone["Pinecone vector query"]
-  Pinecone --> Hybrid["Hybrid rerank: vector score + BM25"]
+  Pinecone --> Hybrid["Rerank: vector + BM25, optional SEC metadata"]
   Hybrid --> Context["Sanitize and limit context"]
   Context --> LLM["llm-orchestrator /generate"]
   LLM --> Resp
 ```
 
-The retrieval path uses Pinecone for first-stage vector candidates, then reranks those candidates with BM25 lexical scores in `services/inference-api/utils/hybrid_retrieval.py`. This supports a bounded hybrid retrieval claim: vector retrieval plus BM25 reranking over retrieved candidates. It is not a separate first-stage BM25 index.
+The retrieval path uses Pinecone for first-stage vector candidates, then reranks those candidates with BM25 lexical scores in `services/inference-api/utils/hybrid_retrieval.py`. For the public SEC section benchmark, an opt-in SEC-aware reranker can additionally use query-visible filing metadata and indexed chunk metadata. This supports bounded retrieval claims: vector retrieval plus BM25 reranking over retrieved candidates, and local SEC section reranking evidence. It is not a separate first-stage BM25 index.
 
 ## Retrieval Benchmark Flow
 
@@ -105,7 +105,7 @@ flowchart LR
   V --> I["ingest mode via ingestion API"]
   I --> Pipe["OCR, layout, embedding pipeline"]
   Pipe --> PC["Pinecone namespace"]
-  PC --> R["retrieve mode: Pinecone candidates + BM25 rerank"]
+  PC --> R["retrieve mode: Pinecone candidates + BM25/SEC rerank"]
   R --> A["optional answer mode via query API"]
   R --> Reports["JSON/Markdown reports"]
   A --> Reports
@@ -117,10 +117,10 @@ The harness supports:
 
 - `validate-only`: schema and local-file validation without service calls
 - `ingest`: upload PDFs to the ingestion API and record per-document status
-- `retrieve`: query a configured Pinecone index/namespace, apply the existing BM25 hybrid reranker, and compute Recall@k, MRR, and nDCG when labels are available
+- `retrieve`: query a configured Pinecone index/namespace, apply the BM25 hybrid reranker or opt-in SEC-aware reranker, and compute Recall@k, MRR, and nDCG when labels are available
 - `answer`: optionally call the query API and record lightweight answer proxy metrics
 
-This harness enables local real-service case-study runs over curated PDF corpora. A sanitized SEC EDGAR section-level retrieval report is checked in, but it remains local public-corpus evidence with explicit limitations, not production retrieval-quality evidence.
+This harness enables local real-service case-study runs over curated PDF corpora. Sanitized SEC EDGAR section-level retrieval reports are checked in, including a v2 SEC-aware reranking ablation, but they remain local public-corpus evidence with explicit limitations, not production retrieval-quality evidence.
 
 ## Public Corpus Readiness Flow
 
@@ -209,7 +209,7 @@ Implemented mechanisms include:
 ## Current Gaps
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates; the synthetic benchmark remains offline and separate from the SEC Pinecone report.
-- The checked-in SEC report is section-level only, has low top-k metrics, and does not include chunk-level labels or answer correctness evaluation.
+- The checked-in SEC reports are section-level only and do not include chunk-level labels or answer correctness evaluation. The best v2 report still has 6 candidate-pool misses out of 29 queries.
 - Public CUAD acquisition, preflight, synthetic PDF smoke, and report promotion tooling exist, but no CUAD evaluation report is checked in yet.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.

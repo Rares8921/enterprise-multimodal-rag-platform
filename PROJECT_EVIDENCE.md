@@ -195,35 +195,43 @@ Limitations:
 - Sanitized report promotion still requires human review before a report is selected as public evidence.
 
 Claim:
-Evaluated Pinecone-backed retrieval over 8 public SEC 10-K filings with section-level metrics using Recall@k, MRR, and nDCG.
+Improved SEC section-level retrieval evaluation over 8 public 10-K filings using section-aware chunk metadata and SEC-aware reranking, reporting Recall@k, MRR, nDCG, and candidate-pool misses.
 
 Evidence:
-The public SEC filings were acquired/rendered locally, processed through the ingestion/OCR/layout/embedding pipeline, indexed into Pinecone namespace `tenant_eval_local`, and evaluated with a section-labeled manifest. The sanitized checked-in report records 29 section-level queries, candidate pool size 25, hybrid reranking over Pinecone vector candidates, candidate-pool misses, and section-level retrieval metrics.
+The public SEC filings were acquired/rendered locally, processed through the ingestion/OCR/layout/embedding pipeline, indexed into Pinecone, then copied into namespace `tenant_eval_sec_sections_v2` with enriched SEC metadata derived from the committed section manifest and ingestion mapping. The retrieval evaluator can run the baseline BM25 hybrid reranker or an opt-in SEC-aware reranker that uses only query-visible section, ticker, accession number, and filing-year facts plus indexed metadata. The sanitized checked-in v2 report records 29 section-level queries, candidate-pool ablations, and the best honest local run.
 
 Files:
 - `benchmarks/sec_section_labeler.py`
+- `benchmarks/sec_metadata_enrichment.py`
 - `benchmarks/corpora/sec_edgar_section_manifest.generated.json`
 - `benchmarks/corpora/results/sanitized_sec_section_retrieval_summary.md`
+- `benchmarks/corpora/results/sanitized_sec_section_retrieval_v2_summary.md`
 - `benchmarks/e2e_document_rag_eval.py`
 - `benchmarks/promote_document_rag_report.py`
+- `services/inference-api/utils/hybrid_retrieval.py`
 - `tests/benchmark/test_sec_section_labeler.py`
+- `tests/benchmark/test_sec_metadata_enrichment.py`
 - `tests/benchmark/test_document_rag_eval_metrics.py`
-- `tests/benchmark/test_public_corpus_workflow.py`
+- `tests/unit/test_hybrid_retrieval.py`
 
 Validation:
 - Section label generation: `python benchmarks\sec_section_labeler.py --manifest benchmarks\corpora\sec_edgar_rendered_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --labels-out benchmarks\corpora\sec_edgar_section_labels.generated.json --manifest-out benchmarks\corpora\sec_edgar_section_manifest.generated.json --overwrite`.
-- Manifest validation: `python benchmarks\e2e_document_rag_eval.py validate-only --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --run-id sec_section_validate`.
-- Retrieval evaluation: `python benchmarks\e2e_document_rag_eval.py retrieve --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_local --pinecone-index $env:PINECONE_INDEX --embedding-model sentence-transformers/all-MiniLM-L6-v2 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --run-id sec_section_retrieve`.
-- Sanitized report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_sec_section_retrieve.json --output-md benchmarks\corpora\results\sanitized_sec_section_retrieval_summary.md`.
-- Result in sanitized report: 8 documents, 29 section-level queries, candidate pool misses `13`, Recall@1 `0.1034`, Recall@3 `0.2759`, Recall@5 `0.3448`, MRR `0.1879`, nDCG@5 `0.2269`.
-- Diagnostic pool-100 ablation was also run locally and reduced candidate-pool misses from `13` to `6`, but top-k metrics decreased: Recall@1 `0.0345`, Recall@3 `0.2414`, Recall@5 `0.3103`, MRR `0.1477`, nDCG@5 `0.1887`.
+- Metadata enrichment: `python benchmarks\sec_metadata_enrichment.py --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --pinecone-index $env:PINECONE_INDEX --source-namespace tenant_eval_local --target-namespace tenant_eval_sec_sections_v2 --overwrite-namespace --report-out benchmarks\corpora\results\sec_metadata_enrichment_v2.json`.
+- Enrichment result: namespace `tenant_eval_sec_sections_v2`, vectors `1,343`, section-mapped vectors `575`, unknown-section vectors `768`, table-of-contents-like vectors `104`.
+- Focused tests: `python -m pytest tests\benchmark\test_sec_metadata_enrichment.py -q` passed with 8 tests; `python -m pytest tests\unit\test_hybrid_retrieval.py tests\benchmark\test_document_rag_eval_metrics.py -q` passed with 12 tests.
+- Retrieval ablations used `benchmarks\corpora\sec_edgar_section_manifest.generated.json`, `sentence-transformers/all-MiniLM-L6-v2`, and Pinecone index `$env:PINECONE_INDEX`.
+- Previous section baseline: candidate pool `25`, candidate misses `13`, Recall@1 `0.1034`, Recall@3 `0.2759`, Recall@5 `0.3448`, MRR `0.1879`, nDCG@5 `0.2269`.
+- Best v2 run: namespace `tenant_eval_sec_sections_v2`, candidate pool `100`, SEC-aware reranking, candidate misses `6`, Recall@1 `0.7586`, Recall@3 `0.7931`, Recall@5 `0.7931`, MRR `0.7759`, nDCG@5 `0.7804`.
+- Per-query comparison against the previous section baseline: 13 queries improved at Recall@5, 0 regressed at Recall@5, and 6 remaining Recall@5 misses were candidate-pool misses.
+- Sanitized report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_sec_section_retrieve_v2_pool100.json --output-md benchmarks\corpora\results\sanitized_sec_section_retrieval_v2_summary.md`.
 
 Limitations:
-- This is a local real-service public-corpus evaluation, not production retrieval quality.
+- This is a local real-service public-corpus evaluation, not production retrieval quality or a production Pinecone benchmark.
 - Labels are generated from rendered SEC PDF text with conservative regex section heading extraction; uncertain ranges are collapsed and marked with lower confidence.
-- Metrics are section-level only. Page ranges support section labels, but no chunk-level labels or answer correctness labels are claimed.
+- Metrics are section-level only. No chunk-level labels, answer correctness labels, legal correctness, or financial correctness are claimed.
+- SEC-aware reranking uses query-visible filing metadata and indexed metadata; it does not prove general semantic retrieval quality.
 - Raw SEC HTML/PDF files and raw local JSON reports are not committed.
-- Results do not prove legal correctness, financial correctness, customer data behavior, uptime, QPS, SLA, cost savings, or provider/model accuracy.
+- Results do not prove customer data behavior, uptime, QPS, SLA, cost savings, compliance readiness, or provider/model accuracy.
 Claim:
 The project implements typed, cost-aware LLM routing and orchestration.
 
@@ -379,6 +387,6 @@ Limitations:
 - Do not claim BM25 is a separate first-stage retrieval index; current BM25 support is candidate reranking.
 - Do not claim LayoutLMv3 production accuracy; no validated accuracy report is included.
 - Do not claim production retrieval quality or real Pinecone performance from the synthetic offline retrieval benchmark.
-- Do not claim real PDF/Pinecone results beyond the checked-in local public SEC section-level report and its exact limitations.
+- Do not claim real PDF/Pinecone results beyond the checked-in local public SEC section-level reports and their exact limitations.
 - Do not claim customer/private document evaluation.
 - Do not claim the synthetic retrieval benchmark proves legal or financial correctness.

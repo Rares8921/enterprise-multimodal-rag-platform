@@ -408,3 +408,54 @@
 - The reranker uses SEC 10-K metadata and should be treated as a benchmark/reranking improvement, not a general legal or financial correctness signal.
 - It can only help when relevant chunks are present in the vector candidate pool.
 - The next step is to run the planned Pinecone ablations before claiming any metric improvement.
+
+
+## SEC Section Retrieval V2 Ablations
+
+### Completed Work
+
+- Verified enriched Pinecone namespace `tenant_eval_sec_sections_v2` contains `1,343` vectors.
+- Confirmed sampled vector metadata includes `section_id`, `section_name`, `ticker`, `company_name`, `filing_date`, `filing_year`, `form_type`, `accession_number`, `page_number`, `document_id`, and table-of-contents markers.
+- Ran five Pinecone-backed section-level retrieval ablations over the same 8 public SEC 10-K filings and 29 section-level queries.
+- Promoted the best honest run to `benchmarks/corpora/results/sanitized_sec_section_retrieval_v2_summary.md` and added a sanitized baseline comparison table.
+- Updated README, architecture docs, case study, and project evidence to reflect the improved but still bounded result.
+
+### Files Changed
+
+- `benchmarks/corpora/results/sanitized_sec_section_retrieval_v2_summary.md`
+- `PROJECT_EVIDENCE.md`
+- `README.md`
+- `docs/architecture.md`
+- `docs/case-study.md`
+- `WORKLOG.md`
+
+### Tests and Checks Run
+
+- Pinecone metadata verification for namespace `tenant_eval_sec_sections_v2`.
+- `python benchmarks\e2e_document_rag_eval.py retrieve ... --run-id sec_section_retrieve_v2_baseline`
+- `python benchmarks\e2e_document_rag_eval.py retrieve ... --pinecone-namespace tenant_eval_sec_sections_v2 --run-id sec_section_retrieve_v2_metadata`
+- `python benchmarks\e2e_document_rag_eval.py retrieve ... --pinecone-namespace tenant_eval_sec_sections_v2 --sec-aware-rerank --run-id sec_section_retrieve_v2_rerank`
+- `python benchmarks\e2e_document_rag_eval.py retrieve ... --pinecone-namespace tenant_eval_sec_sections_v2 --sec-aware-rerank --retrieval-candidate-pool 50 --run-id sec_section_retrieve_v2_pool50`
+- `python benchmarks\e2e_document_rag_eval.py retrieve ... --pinecone-namespace tenant_eval_sec_sections_v2 --sec-aware-rerank --retrieval-candidate-pool 100 --run-id sec_section_retrieve_v2_pool100`
+- `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_retrieve_sec_section_retrieve_v2_pool100.json --output-md benchmarks\corpora\results\sanitized_sec_section_retrieval_v2_summary.md`
+
+### Results
+
+| Run | Namespace | Candidate Pool | Recall@1 | Recall@3 | Recall@5 | MRR | nDCG@5 | Candidate Misses |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Previous section baseline | `tenant_eval_local` | 25 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 | 13 |
+| V2 old namespace baseline | `tenant_eval_local` | 25 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 | 13 |
+| V2 enriched metadata only | `tenant_eval_sec_sections_v2` | 25 | 0.1034 | 0.2759 | 0.3448 | 0.1879 | 0.2269 | 13 |
+| V2 SEC-aware rerank | `tenant_eval_sec_sections_v2` | 25 | 0.5172 | 0.5517 | 0.5517 | 0.5287 | 0.5345 | 13 |
+| V2 SEC-aware rerank | `tenant_eval_sec_sections_v2` | 50 | 0.6897 | 0.7241 | 0.7241 | 0.7069 | 0.7114 | 8 |
+| V2 SEC-aware rerank | `tenant_eval_sec_sections_v2` | 100 | 0.7586 | 0.7931 | 0.7931 | 0.7759 | 0.7804 | 6 |
+
+- Best honest run: SEC-aware reranking over `tenant_eval_sec_sections_v2` with candidate pool `100`.
+- Per-query comparison against the previous section baseline: 13 queries improved at Recall@5, 0 regressed, and 6 remaining Recall@5 misses were candidate-pool misses.
+
+### Remaining Risks and Limitations
+
+- Metrics are section-level only; there are no chunk-level labels or answer correctness labels.
+- The SEC-aware reranker uses query-visible metadata and indexed metadata for this public SEC corpus, not production-only signals.
+- Remaining misses are candidate-pool misses, so reranking alone cannot solve them.
+- This is local Pinecone-backed public-corpus evidence, not production retrieval quality.
