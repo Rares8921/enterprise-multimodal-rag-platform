@@ -459,3 +459,32 @@
 - The SEC-aware reranker uses query-visible metadata and indexed metadata for this public SEC corpus, not production-only signals.
 - Remaining misses are candidate-pool misses, so reranking alone cannot solve them.
 - This is local Pinecone-backed public-corpus evidence, not production retrieval quality.
+
+
+## SEC Answer Evaluation Readiness
+
+### Completed Work
+
+- Inspected the answer-mode harness, query API, LLM orchestrator, SEC section manifest, v2 retrieval evidence, and environment variable names without printing secret values.
+- Confirmed the SEC section manifest has 29 citation-required queries and 29 expected answer-hint lists.
+- Validated answer-mode plumbing for passing retrieval candidate pool and SEC-aware reranking settings into the query API.
+- Validated inference API support for returning retrieval strategy, candidate pool, and SEC reranking metadata in query responses.
+
+### Files Changed
+
+- `benchmarks/e2e_document_rag_eval.py`
+- `services/inference-api/QueryModel.py`
+- `services/inference-api/main.py`
+- `WORKLOG.md`
+
+### Tests and Checks Run
+
+- `python -m py_compile benchmarks\e2e_document_rag_eval.py services\inference-api\QueryModel.py services\inference-api\main.py`
+- `python -m pytest tests\benchmark\test_document_rag_eval_metrics.py tests\unit\test_hybrid_retrieval.py -q` - 12 passed.
+- `docker compose ps` - Redis, PostgreSQL, and MinIO were running; inference API, LLM orchestrator, and local Mistral endpoint were not listening yet.
+
+### Remaining Risks and Limitations
+
+- Answer evaluation still requires live query and LLM orchestration services.
+- The local Mistral-compatible endpoint was unavailable; answer evaluation should force Gemini if Gemini is configured and reachable.
+- The query API uses the authenticated/request tenant ID as the Pinecone namespace, so the SEC v2 answer run should use tenant `tenant_eval_sec_sections_v2`.

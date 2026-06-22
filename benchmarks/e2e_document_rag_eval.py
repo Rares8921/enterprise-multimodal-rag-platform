@@ -284,6 +284,7 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
             row = _call_answer_query(client, args, headers, query, request_payload)
             rows.append(row)
 
+    successful_rows = [row for row in rows if row.get("status") == "ok"]
     report["answer"] = {
         "mode": "optional_real_service_answer_proxy",
         "query_count": len(rows),
@@ -292,8 +293,16 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
         "citation_presence_rate_required": _required_citation_rate(rows),
         "average_expected_hint_overlap": round(mean(row.get("expected_hint_overlap", 0.0) for row in rows), 6) if rows else 0.0,
         "model_counts": dict(Counter(row.get("model_used") for row in rows if row.get("model_used"))),
+        "retrieval_strategy_counts": dict(Counter(row.get("retrieval_strategy") for row in rows if row.get("retrieval_strategy"))),
         "estimated_tokens_used": sum(row.get("tokens_used", 0) or 0 for row in rows),
-        "average_confidence_score": round(mean(row.get("confidence_score", 0.0) for row in rows if row.get("confidence_score") is not None), 6) if any(row.get("confidence_score") is not None for row in rows) else 0.0,
+        "average_confidence_score": round(mean(row.get("confidence_score", 0.0) for row in successful_rows if row.get("confidence_score") is not None), 6) if any(row.get("confidence_score") is not None for row in successful_rows) else 0.0,
+        "average_latency_ms": round(mean(row.get("latency_ms", 0.0) for row in successful_rows if row.get("latency_ms") is not None), 6) if any(row.get("latency_ms") is not None for row in successful_rows) else 0.0,
+        "average_retrieval_count": round(mean(row.get("retrieval_count", 0.0) for row in successful_rows if row.get("retrieval_count") is not None), 6) if any(row.get("retrieval_count") is not None for row in successful_rows) else 0.0,
+        "retrieval_candidate_pool": args.retrieval_candidate_pool,
+        "sec_aware_rerank": args.sec_aware_rerank,
+        "sec_metadata_weight": args.sec_metadata_weight if args.sec_aware_rerank else None,
+        "target_doc_filter_enabled": not args.answer_disable_target_doc_filter,
+        "failure_errors": dict(Counter(row.get("error") for row in rows if row.get("status") == "failed" and row.get("error"))),
         "queries": rows,
     }
     report["limitations"].extend([
@@ -1135,10 +1144,13 @@ def _build_answer_request_payload(
         "model_choice": args.model_choice,
         "agent": args.agent,
         "include_citations": True,
+        "retrieval_candidate_pool": args.retrieval_candidate_pool,
+        "sec_aware_rerank": args.sec_aware_rerank,
+        "sec_metadata_weight": args.sec_metadata_weight,
     }
     if doc_type in INGESTION_SUPPORTED_DOC_TYPES:
         payload["doc_type"] = doc_type
-    if len(mapped_targets) == 1:
+    if len(mapped_targets) == 1 and not args.answer_disable_target_doc_filter:
         payload["doc_id"] = mapped_targets[0]
     return payload
 
@@ -1181,6 +1193,9 @@ def _call_answer_query(
             "tokens_used": metadata.get("tokens_used", 0),
             "retrieval_count": metadata.get("retrieval_count"),
             "cache_hit": metadata.get("cache_hit"),
+            "retrieval_strategy": metadata.get("retrieval_strategy"),
+            "retrieval_candidate_pool": metadata.get("retrieval_candidate_pool"),
+            "sec_aware_rerank": metadata.get("sec_aware_rerank"),
             "citation_count": len(citations),
         }
     except httpx.HTTPStatusError as exc:
@@ -1278,6 +1293,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sec-metadata-weight", type=float, default=0.5)
     parser.add_argument("--query-api-url", default=os.getenv("INFERENCE_API_URL", "http://localhost:8000"))
     parser.add_argument("--answer-top-k", type=int, default=5)
+    parser.add_argument("--answer-disable-target-doc-filter", action="store_true")
     parser.add_argument("--model-choice", default="auto")
     parser.add_argument("--agent", default=None)
     parser.add_argument("--write-csv", action="store_true")

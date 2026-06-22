@@ -7,6 +7,9 @@ class QueryRequest(BaseModel):
     doc_type: Optional[str] = None
     doc_id: Optional[str] = None
     top_k: int = 10
+    retrieval_candidate_pool: Optional[int] = None
+    sec_aware_rerank: bool = False
+    sec_metadata_weight: float = 0.5
     model_choice: str = "auto"
     agent: Optional[str] = None
     include_citations: bool = True
@@ -28,6 +31,22 @@ class QueryRequest(BaseModel):
             raise ValueError('top_k must be at least 1')
         if v > 50:
             return 50
+        return v
+
+    @validator('retrieval_candidate_pool')
+    def validate_retrieval_candidate_pool(cls, v):
+        if v is None:
+            return v
+        if v < 1:
+            raise ValueError('retrieval_candidate_pool must be at least 1')
+        if v > 200:
+            return 200
+        return v
+
+    @validator('sec_metadata_weight')
+    def validate_sec_metadata_weight(cls, v):
+        if v < 0:
+            raise ValueError('sec_metadata_weight must be non-negative')
         return v
 
     @validator('doc_type', 'doc_id')

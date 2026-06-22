@@ -27,7 +27,7 @@ except ImportError:
     logging.warning("tiktoken not available, falling back to char estimation")
 
 from config import Settings
-from utils.hybrid_retrieval import hybrid_rerank
+from utils.hybrid_retrieval import hybrid_rerank, sec_aware_rerank
 from auth import get_current_auth_context, AuthContext
 from auth.dependencies import create_test_api_key_for_tenant
 from auth.config import get_auth_config
@@ -319,6 +319,10 @@ def build_llm_payload(
             'type': ctx.get('type', 'text'),
             'doc_id': ctx.get('doc_id', ''),
             'filename': ctx.get('filename', ''),
+            'section_id': ctx.get('section_id'),
+            'section_name': ctx.get('section_name'),
+            'ticker': ctx.get('ticker'),
+            'accession_number': ctx.get('accession_number'),
             'score': ctx.get('score', 0.0)
         })
 
@@ -718,13 +722,24 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
 
             try:
                 loop = asyncio.get_event_loop()
+                candidate_pool = max(request.top_k, request.retrieval_candidate_pool or request.top_k)
                 retrieval_results = await asyncio.wait_for(
-                    loop.run_in_executor(None, lambda: query_pinecone(query_embedding, request.top_k, tenant_id, filter_dict)),
+                    loop.run_in_executor(None, lambda: query_pinecone(query_embedding, candidate_pool, tenant_id, filter_dict)),
                     timeout=settings.pinecone_timeout
                 )
-                ranked_matches = hybrid_rerank(request.query, retrieval_results.get('matches', []))
-                for match in ranked_matches:
-                    if match.get('score', 0) < settings.min_retrieval_score:
+                if request.sec_aware_rerank:
+                    ranked_matches = sec_aware_rerank(
+                        request.query,
+                        retrieval_results.get('matches', []),
+                        metadata_weight=request.sec_metadata_weight,
+                    )
+                    retrieval_strategy = 'pinecone_vector_candidates_plus_bm25_sec_aware_rerank'
+                else:
+                    ranked_matches = hybrid_rerank(request.query, retrieval_results.get('matches', []))
+                    retrieval_strategy = 'pinecone_vector_candidates_plus_bm25_hybrid_rerank'
+                for match in ranked_matches[:request.top_k]:
+                    final_score = match.get('sec_aware_score', match.get('hybrid_score', match.get('score', 0.0)))
+                    if final_score < settings.min_retrieval_score:
                         continue
                     metadata = match.get('metadata') or {}
                     context.append({
@@ -733,9 +748,15 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
                         'type': metadata.get('type', 'text'),
                         'doc_id': metadata.get('doc_id', ''),
                         'filename': metadata.get('filename', ''),
-                        'score': match.get('hybrid_score', match.get('score', 0.0)),
+                        'section_id': metadata.get('section_id'),
+                        'section_name': metadata.get('section_name'),
+                        'ticker': metadata.get('ticker'),
+                        'accession_number': metadata.get('accession_number'),
+                        'score': final_score,
                         'vector_score': match.get('vector_score', match.get('score', 0.0)),
-                        'bm25_score': match.get('bm25_score', 0.0)
+                        'bm25_score': match.get('bm25_score', 0.0),
+                        'hybrid_score': match.get('hybrid_score'),
+                        'sec_metadata_score': match.get('sec_metadata_score'),
                     })
                 context = limit_context_size(context)
                 retrieval_time = time.time() - retrieval_start
@@ -772,6 +793,9 @@ async def process_query(request: QueryRequest, auth_context: AuthContext = Depen
                 'latency_ms': latency_ms,
                 'metadata': {
                     'retrieval_count': len(context),
+                    'retrieval_candidate_pool': request.retrieval_candidate_pool or request.top_k,
+                    'retrieval_strategy': retrieval_strategy if 'retrieval_strategy' in locals() else 'unavailable',
+                    'sec_aware_rerank': request.sec_aware_rerank,
                     'tokens_used': llm_data.get('tokens_used', 0),
                     'cache_hit': False,
                     'request_id': request_id
