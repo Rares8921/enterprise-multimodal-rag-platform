@@ -8,10 +8,11 @@ logger = logging.getLogger(__name__)
 
 class GeminiLLM:
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
-        logger.info("Gemini model initialized")
+        self.model_name = model_name
+        self.model = genai.GenerativeModel(model_name)
+        logger.info("Gemini model initialized: %s", model_name)
 
     async def generate(self, prompt: str, temperature: float = 0.1, max_tokens: int = 1024) -> Dict[str, Any]:
         try:

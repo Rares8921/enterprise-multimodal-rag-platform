@@ -488,3 +488,35 @@
 - Answer evaluation still requires live query and LLM orchestration services.
 - The local Mistral-compatible endpoint was unavailable; answer evaluation should force Gemini if Gemini is configured and reachable.
 - The query API uses the authenticated/request tenant ID as the Pinecone namespace, so the SEC v2 answer run should use tenant `tenant_eval_sec_sections_v2`.
+
+
+## Gemini Provider Model Configuration Fix
+
+### Completed Work
+
+- Diagnosed the first SEC answer run failure: the LLM orchestrator hardcoded `gemini-1.5-pro`, which the configured Gemini API reported as unavailable for `generateContent`.
+- Queried Gemini model metadata and confirmed current generate-capable models are available, including `gemini-2.5-flash`.
+- Made the Gemini wrapper model name configurable via `GEMINI_MODEL_NAME`, defaulting to `gemini-2.5-flash`.
+- Added deterministic unit coverage that verifies the wrapper passes the configured model name into `GenerativeModel`.
+
+### Files Changed
+
+- `services/llm-orchestrator/config.py`
+- `services/llm-orchestrator/model_wrapper/GeminiLLM.py`
+- `services/llm-orchestrator/main.py`
+- `tests/unit/test_gemini_model_wrapper.py`
+- `.env.example`
+- `README.md`
+- `WORKLOG.md`
+
+### Tests and Checks Run
+
+- `python -m py_compile services\llm-orchestrator\config.py services\llm-orchestrator\model_wrapper\GeminiLLM.py services\llm-orchestrator\main.py`
+- `python -m pytest tests\unit\test_gemini_model_wrapper.py tests\unit\test_llm_routing.py -q` - 12 passed.
+- Gemini model metadata query using configured credentials; no secrets printed.
+
+### Remaining Risks and Limitations
+
+- The answer run must still be repeated after restarting the LLM orchestrator with the new model setting.
+- Local Mistral remains unavailable; the SEC answer run should continue forcing Gemini.
+- The first failed answer run remains local raw evidence only and is not promoted as answer-quality evidence.

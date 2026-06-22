@@ -61,7 +61,7 @@ async def startup():
     model_router = ModelRouter(settings, complexity_analyzer)
 
     # Initialize LLMs
-    gemini_model = GeminiLLM(settings.gemini_api_key)
+    gemini_model = GeminiLLM(settings.gemini_api_key, settings.gemini_model_name)
 
     mistral_client = httpx.AsyncClient()
     mistral_model = MistralLLM(settings.mistral_api_url, mistral_client)
