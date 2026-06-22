@@ -153,6 +153,17 @@ def test_prompt_manager_selects_legal_and_financial_prompts():
 
 
 @pytest.mark.unit
+def test_prompt_manager_resolves_default_prompts_from_service_directory(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    manager = PromptManager()
+
+    prompt = manager.get_prompt_template("financial_report")
+
+    assert manager.prompts_dir == SERVICE_DIR / "specialized_prompts"
+    assert "Financial Document Analyst" in prompt
+
+
+@pytest.mark.unit
 def test_cost_estimation_uses_configured_model_prices(router):
     cost = router.estimate_cost("mistral", input_tokens=1_000, output_tokens=500)
 

@@ -8,7 +8,12 @@ logger = logging.getLogger(__name__)
 class PromptManager:
 
     def __init__(self, prompts_dir: str = "specialized_prompts"):
-        self.prompts_dir = Path(prompts_dir)
+        prompts_path = Path(prompts_dir)
+        if not prompts_path.is_absolute():
+            service_relative = Path(__file__).resolve().parent / prompts_path
+            if service_relative.exists():
+                prompts_path = service_relative
+        self.prompts_dir = prompts_path
         self._cache = {}
 
     def _build_template(self, prompt_data: dict) -> str:
