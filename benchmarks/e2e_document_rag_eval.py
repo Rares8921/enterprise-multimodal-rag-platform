@@ -220,6 +220,7 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
         "by_category": _category_metrics(rows),
         "label_granularity_counts": dict(Counter(row["label_granularity"] for row in rows)),
         "candidate_pool_miss_count": sum(1 for row in rows if not row["candidate_pool_contains_relevant"]),
+        "metric_deduplication": "document/page/chunk label identity before metric calculation",
         "missed_queries_top5": [
             {
                 "query_id": row["query_id"],
@@ -236,6 +237,7 @@ def retrieve(args: argparse.Namespace) -> dict[str, Any]:
     report["limitations"].extend([
         "Retrieval mode requires a live Pinecone index populated by the ingestion/OCR/layout/embedding pipeline.",
         "Document-level labels are weaker than page-level or chunk-level labels; metric interpretation depends on manifest label granularity.",
+        "Retrieval metrics deduplicate repeated Pinecone chunks by the active label granularity before scoring.",
         "This is local real-service evidence only and must not be described as production retrieval quality.",
     ])
     return report
@@ -849,8 +851,10 @@ def _evaluate_retrieval_query(
         )
         all_results.append(result)
 
+    metric_results = _dedupe_results_for_metrics(all_results, label_granularity)
     top_results = all_results[:top_k]
-    ranked_relevance = [result["is_relevant"] for result in top_results]
+    metric_top_results = metric_results[:top_k]
+    ranked_relevance = [result["is_relevant"] for result in metric_top_results]
     metrics = {
         "recall@1": recall_at_k(ranked_relevance, relevant_count, 1),
         "recall@3": recall_at_k(ranked_relevance, relevant_count, 3),
@@ -869,8 +873,37 @@ def _evaluate_retrieval_query(
         "label_granularity": label_granularity,
         "candidate_pool_contains_relevant": any(result["is_relevant"] for result in all_results),
         "metrics": metrics,
+        "metrics_deduplicated_by": label_granularity,
+        "metric_result_count": len(metric_results),
         "top_results": top_results,
     }
+
+
+def _dedupe_results_for_metrics(results: list[dict[str, Any]], label_granularity: str) -> list[dict[str, Any]]:
+    seen: set[tuple[Any, ...]] = set()
+    deduped: list[dict[str, Any]] = []
+    for result in results:
+        key = _metric_identity(result, label_granularity)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(result)
+    return deduped
+
+
+def _metric_identity(result: dict[str, Any], label_granularity: str) -> tuple[Any, ...]:
+    doc_identity = next(
+        (str(value) for value in [result.get("doc_id"), result.get("manifest_document_id"), result.get("filename")] if value is not None),
+        str(result.get("id")),
+    )
+    if label_granularity == "document":
+        return ("document", doc_identity)
+    if label_granularity == "page":
+        return ("page", doc_identity, result.get("page"))
+    chunk_identity = result.get("id") or f"{doc_identity}:{result.get('chunk_id')}"
+    return ("chunk", str(chunk_identity))
+
+
 def _label_granularity(query: Any) -> str:
     if query.relevant_chunk_ids:
         return "chunk"
