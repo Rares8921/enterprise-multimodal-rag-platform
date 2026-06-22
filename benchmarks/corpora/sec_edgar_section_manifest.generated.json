@@ -1,0 +1,1615 @@
+{
+  "corpus_id": "sec_edgar_public_sample_rendered_pdf_section_eval",
+  "corpus_name": "SEC EDGAR Public Filing Sample Rendered PDF - Section Retrieval Evaluation",
+  "mode": "public",
+  "source_metadata": {
+    "source_id": "sec_edgar",
+    "source_name": "SEC EDGAR Company Filings",
+    "provider_name": "U.S. Securities and Exchange Commission",
+    "source_url": "https://www.sec.gov/edgar",
+    "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+    "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+    "source_format": "rendered_pdf",
+    "original_source_format": "html",
+    "rendering_method": "html_text_to_pdf",
+    "rendering_limitations": "Rendered PDFs preserve extracted visible text for ingestion; they are not evidence of visual-layout fidelity.",
+    "section_labeling": {
+      "generated_at_utc": "2026-06-22T10:56:39.464253+00:00",
+      "method": "conservative regex heading extraction over rendered SEC PDF text",
+      "section_ids": [
+        "item_1_business",
+        "item_1a_risk_factors",
+        "item_7_mda",
+        "item_7a_market_risk",
+        "item_8_financial_statements",
+        "item_9a_controls"
+      ],
+      "limitations": [
+        "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+        "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+        "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+        "No raw SEC filing text is written to the generated labels or manifest."
+      ]
+    }
+  },
+  "documents": [
+    {
+      "document_id": "sec_aapl_10_k_0000320193_25_000079",
+      "filename": "sec_edgar_rendered/sec_aapl_10_k_0000320193_25_000079.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for AAPL; accession=0000320193-25-000079; filing_date=2025-10-31; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "cik": "0000320193",
+        "accession_number": "0000320193-25-000079",
+        "form_type": "10-K",
+        "filing_date": "2025-10-31",
+        "primary_document": "aapl-20250927.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_aapl_10_k_0000320193_25_000079.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_1_business",
+            "section_name": "Item 1. Business",
+            "start_page": 8,
+            "end_page": 11,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_1a_risk_factors",
+            "section_name": "Item 1A. Risk Factors",
+            "start_page": 12,
+            "end_page": 31,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_7_mda",
+            "section_name": "Item 7. Management's Discussion and Analysis",
+            "start_page": 32,
+            "end_page": 37,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_7a_market_risk",
+            "section_name": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+            "start_page": 38,
+            "end_page": 38,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_8_financial_statements",
+            "section_name": "Item 8. Financial Statements",
+            "start_page": 38,
+            "end_page": 59,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 60,
+            "end_page": 69,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 6
+      },
+      "page_count": 69,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_aapl_10_k_0000320193_24_000123",
+      "filename": "sec_edgar_rendered/sec_aapl_10_k_0000320193_24_000123.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for AAPL; accession=0000320193-24-000123; filing_date=2024-11-01; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "cik": "0000320193",
+        "accession_number": "0000320193-24-000123",
+        "form_type": "10-K",
+        "filing_date": "2024-11-01",
+        "primary_document": "aapl-20240928.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_aapl_10_k_0000320193_24_000123.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_1_business",
+            "section_name": "Item 1. Business",
+            "start_page": 8,
+            "end_page": 11,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_1a_risk_factors",
+            "section_name": "Item 1A. Risk Factors",
+            "start_page": 12,
+            "end_page": 31,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_7_mda",
+            "section_name": "Item 7. Management's Discussion and Analysis",
+            "start_page": 32,
+            "end_page": 36,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_7a_market_risk",
+            "section_name": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+            "start_page": 37,
+            "end_page": 37,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_8_financial_statements",
+            "section_name": "Item 8. Financial Statements",
+            "start_page": 38,
+            "end_page": 59,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 60,
+            "end_page": 69,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 6
+      },
+      "page_count": 69,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_msft_10_k_0000950170_25_100235",
+      "filename": "sec_edgar_rendered/sec_msft_10_k_0000950170_25_100235.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for MSFT; accession=0000950170-25-100235; filing_date=2025-07-30; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "MSFT",
+        "company_name": "Microsoft Corporation",
+        "cik": "0000789019",
+        "accession_number": "0000950170-25-100235",
+        "form_type": "10-K",
+        "filing_date": "2025-07-30",
+        "primary_document": "msft-20250630.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_msft_10_k_0000950170_25_100235.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 154,
+            "end_page": 168,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 1
+      },
+      "page_count": 168,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_msft_10_k_0000950170_24_087843",
+      "filename": "sec_edgar_rendered/sec_msft_10_k_0000950170_24_087843.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for MSFT; accession=0000950170-24-087843; filing_date=2024-07-30; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000095017024087843/msft-20240630.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "MSFT",
+        "company_name": "Microsoft Corporation",
+        "cik": "0000789019",
+        "accession_number": "0000950170-24-087843",
+        "form_type": "10-K",
+        "filing_date": "2024-07-30",
+        "primary_document": "msft-20240630.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_msft_10_k_0000950170_24_087843.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 167,
+            "end_page": 182,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 1
+      },
+      "page_count": 182,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_amzn_10_k_0001018724_26_000004",
+      "filename": "sec_edgar_rendered/sec_amzn_10_k_0001018724_26_000004.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for AMZN; accession=0001018724-26-000004; filing_date=2026-02-06; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000004/amzn-20251231.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "AMZN",
+        "company_name": "Amazon.com, Inc.",
+        "cik": "0001018724",
+        "accession_number": "0001018724-26-000004",
+        "form_type": "10-K",
+        "filing_date": "2026-02-06",
+        "primary_document": "amzn-20251231.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_amzn_10_k_0001018724_26_000004.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_1a_risk_factors",
+            "section_name": "Item 1A. Risk Factors",
+            "start_page": 15,
+            "end_page": 15,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_7a_market_risk",
+            "section_name": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+            "start_page": 45,
+            "end_page": 46,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_8_financial_statements",
+            "section_name": "Item 8. Financial Statements",
+            "start_page": 47,
+            "end_page": 86,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 87,
+            "end_page": 94,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 4
+      },
+      "page_count": 94,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_amzn_10_k_0001018724_25_000004",
+      "filename": "sec_edgar_rendered/sec_amzn_10_k_0001018724_25_000004.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for AMZN; accession=0001018724-25-000004; filing_date=2025-02-07; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872425000004/amzn-20241231.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "AMZN",
+        "company_name": "Amazon.com, Inc.",
+        "cik": "0001018724",
+        "accession_number": "0001018724-25-000004",
+        "form_type": "10-K",
+        "filing_date": "2025-02-07",
+        "primary_document": "amzn-20241231.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_amzn_10_k_0001018724_25_000004.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_1a_risk_factors",
+            "section_name": "Item 1A. Risk Factors",
+            "start_page": 15,
+            "end_page": 15,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 85,
+            "end_page": 92,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 2
+      },
+      "page_count": 92,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_nvda_10_k_0001045810_26_000021",
+      "filename": "sec_edgar_rendered/sec_nvda_10_k_0001045810_26_000021.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for NVDA; accession=0001045810-26-000021; filing_date=2026-02-25; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "NVDA",
+        "company_name": "NVIDIA Corporation",
+        "cik": "0001045810",
+        "accession_number": "0001045810-26-000021",
+        "form_type": "10-K",
+        "filing_date": "2026-02-25",
+        "primary_document": "nvda-20260125.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_nvda_10_k_0001045810_26_000021.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_1_business",
+            "section_name": "Item 1. Business",
+            "start_page": 10,
+            "end_page": 19,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_1a_risk_factors",
+            "section_name": "Item 1A. Risk Factors",
+            "start_page": 20,
+            "end_page": 20,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_8_financial_statements",
+            "section_name": "Item 8. Financial Statements",
+            "start_page": 65,
+            "end_page": 65,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 65,
+            "end_page": 108,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 4
+      },
+      "page_count": 108,
+      "allowed_to_commit": false
+    },
+    {
+      "document_id": "sec_nvda_10_k_0001045810_25_000023",
+      "filename": "sec_edgar_rendered/sec_nvda_10_k_0001045810_25_000023.pdf",
+      "doc_type": "financial_report",
+      "source_type": "public_sec_edgar",
+      "source_note": "SEC EDGAR 10-K filing for NVDA; accession=0001045810-25-000023; filing_date=2025-02-26; source_format=html; rendered_format=pdf; rendering_method=html_text_to_pdf; layout fidelity is not claimed",
+      "source_format": "rendered_pdf",
+      "source_metadata": {
+        "source_id": "sec_edgar",
+        "source_name": "SEC EDGAR Company Filings",
+        "provider_name": "U.S. Securities and Exchange Commission",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm",
+        "license_or_usage_note": "SEC EDGAR filings are public records. Automated access must follow SEC fair-access guidance, including efficient scripting, a clear User-Agent, and request moderation.",
+        "attribution_requirement": "Record SEC company, CIK, accession number, form type, filing date, source URL, and source format in generated manifests.",
+        "ticker": "NVDA",
+        "company_name": "NVIDIA Corporation",
+        "cik": "0001045810",
+        "accession_number": "0001045810-25-000023",
+        "form_type": "10-K",
+        "filing_date": "2025-02-26",
+        "primary_document": "nvda-20250126.htm",
+        "source_format": "rendered_pdf",
+        "original_source_format": "html",
+        "rendered_format": "pdf",
+        "rendered_from_filename": "sec_edgar/sec_nvda_10_k_0001045810_25_000023.htm",
+        "rendering_method": "html_text_to_pdf",
+        "rendering_limitations": "Generated from visible HTML text for ingestion; not a browser-faithful SEC filing layout rendering.",
+        "sec_section_labels": [
+          {
+            "section_id": "item_1_business",
+            "section_name": "Item 1. Business",
+            "start_page": 10,
+            "end_page": 23,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_1a_risk_factors",
+            "section_name": "Item 1A. Risk Factors",
+            "start_page": 24,
+            "end_page": 53,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_7_mda",
+            "section_name": "Item 7. Management's Discussion and Analysis",
+            "start_page": 54,
+            "end_page": 54,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_8_financial_statements",
+            "section_name": "Item 8. Financial Statements",
+            "start_page": 66,
+            "end_page": 66,
+            "confidence": "medium",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          },
+          {
+            "section_id": "item_9a_controls",
+            "section_name": "Item 9A. Controls and Procedures",
+            "start_page": 66,
+            "end_page": 109,
+            "confidence": "high",
+            "method": "regex_heading_in_rendered_pdf_text",
+            "limitations": [
+              "Section labels are generated from rendered SEC PDF text with conservative heading regexes.",
+              "Page ranges are approximate and should be interpreted as retrieval labels, not legal or financial correctness labels.",
+              "The extractor skips table-of-contents hits when detected, but rendered HTML/PDF quirks may still affect page mapping.",
+              "No raw SEC filing text is written to the generated labels or manifest."
+            ]
+          }
+        ],
+        "sec_section_label_count": 5
+      },
+      "page_count": 109,
+      "allowed_to_commit": false
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "sec_aapl_10_k_0000320193_25_000079_item_1_business",
+      "query": "In AAPL 10-K 2025-10-31 0000320193-25-000079, where is Item 1 Business discussed?",
+      "category": "sec_section_item_1_business",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_25_000079"
+      ],
+      "relevant_pages": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "relevant_sections": [
+        "item_1_business"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "business"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_25_000079_item_1a_risk_factors",
+      "query": "In AAPL 10-K 2025-10-31 0000320193-25-000079, where is Item 1A Risk Factors discussed?",
+      "category": "sec_section_item_1a_risk_factors",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_25_000079"
+      ],
+      "relevant_pages": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "relevant_sections": [
+        "item_1a_risk_factors"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "risk factors"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_25_000079_item_7_mda",
+      "query": "In AAPL 10-K 2025-10-31 0000320193-25-000079, where is Item 7 Management's Discussion and Analysis discussed?",
+      "category": "sec_section_item_7_mda",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_25_000079"
+      ],
+      "relevant_pages": [
+        32,
+        33,
+        34,
+        35,
+        36,
+        37
+      ],
+      "relevant_sections": [
+        "item_7_mda"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "management",
+        "discussion",
+        "analysis"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_25_000079_item_7a_market_risk",
+      "query": "In AAPL 10-K 2025-10-31 0000320193-25-000079, where is Item 7A market risk disclosures discussed?",
+      "category": "sec_section_item_7a_market_risk",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_25_000079"
+      ],
+      "relevant_pages": [
+        38
+      ],
+      "relevant_sections": [
+        "item_7a_market_risk"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "market risk"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_25_000079_item_8_financial_statements",
+      "query": "In AAPL 10-K 2025-10-31 0000320193-25-000079, where is Item 8 Financial Statements discussed?",
+      "category": "sec_section_item_8_financial_statements",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_25_000079"
+      ],
+      "relevant_pages": [
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59
+      ],
+      "relevant_sections": [
+        "item_8_financial_statements"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "financial statements"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_25_000079_item_9a_controls",
+      "query": "In AAPL 10-K 2025-10-31 0000320193-25-000079, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_25_000079"
+      ],
+      "relevant_pages": [
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_24_000123_item_1_business",
+      "query": "In AAPL 10-K 2024-11-01 0000320193-24-000123, where is Item 1 Business discussed?",
+      "category": "sec_section_item_1_business",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_24_000123"
+      ],
+      "relevant_pages": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "relevant_sections": [
+        "item_1_business"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "business"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_24_000123_item_1a_risk_factors",
+      "query": "In AAPL 10-K 2024-11-01 0000320193-24-000123, where is Item 1A Risk Factors discussed?",
+      "category": "sec_section_item_1a_risk_factors",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_24_000123"
+      ],
+      "relevant_pages": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "relevant_sections": [
+        "item_1a_risk_factors"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "risk factors"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_24_000123_item_7_mda",
+      "query": "In AAPL 10-K 2024-11-01 0000320193-24-000123, where is Item 7 Management's Discussion and Analysis discussed?",
+      "category": "sec_section_item_7_mda",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_24_000123"
+      ],
+      "relevant_pages": [
+        32,
+        33,
+        34,
+        35,
+        36
+      ],
+      "relevant_sections": [
+        "item_7_mda"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "management",
+        "discussion",
+        "analysis"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_24_000123_item_7a_market_risk",
+      "query": "In AAPL 10-K 2024-11-01 0000320193-24-000123, where is Item 7A market risk disclosures discussed?",
+      "category": "sec_section_item_7a_market_risk",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_24_000123"
+      ],
+      "relevant_pages": [
+        37
+      ],
+      "relevant_sections": [
+        "item_7a_market_risk"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "market risk"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_24_000123_item_8_financial_statements",
+      "query": "In AAPL 10-K 2024-11-01 0000320193-24-000123, where is Item 8 Financial Statements discussed?",
+      "category": "sec_section_item_8_financial_statements",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_24_000123"
+      ],
+      "relevant_pages": [
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59
+      ],
+      "relevant_sections": [
+        "item_8_financial_statements"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "financial statements"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_aapl_10_k_0000320193_24_000123_item_9a_controls",
+      "query": "In AAPL 10-K 2024-11-01 0000320193-24-000123, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_aapl_10_k_0000320193_24_000123"
+      ],
+      "relevant_pages": [
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_msft_10_k_0000950170_25_100235_item_9a_controls",
+      "query": "In MSFT 10-K 2025-07-30 0000950170-25-100235, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_msft_10_k_0000950170_25_100235"
+      ],
+      "relevant_pages": [
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_msft_10_k_0000950170_24_087843_item_9a_controls",
+      "query": "In MSFT 10-K 2024-07-30 0000950170-24-087843, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_msft_10_k_0000950170_24_087843"
+      ],
+      "relevant_pages": [
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_amzn_10_k_0001018724_26_000004_item_1a_risk_factors",
+      "query": "In AMZN 10-K 2026-02-06 0001018724-26-000004, where is Item 1A Risk Factors discussed?",
+      "category": "sec_section_item_1a_risk_factors",
+      "target_document_ids": [
+        "sec_amzn_10_k_0001018724_26_000004"
+      ],
+      "relevant_pages": [
+        15
+      ],
+      "relevant_sections": [
+        "item_1a_risk_factors"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "risk factors"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_amzn_10_k_0001018724_26_000004_item_7a_market_risk",
+      "query": "In AMZN 10-K 2026-02-06 0001018724-26-000004, where is Item 7A market risk disclosures discussed?",
+      "category": "sec_section_item_7a_market_risk",
+      "target_document_ids": [
+        "sec_amzn_10_k_0001018724_26_000004"
+      ],
+      "relevant_pages": [
+        45,
+        46
+      ],
+      "relevant_sections": [
+        "item_7a_market_risk"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "market risk"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_amzn_10_k_0001018724_26_000004_item_8_financial_statements",
+      "query": "In AMZN 10-K 2026-02-06 0001018724-26-000004, where is Item 8 Financial Statements discussed?",
+      "category": "sec_section_item_8_financial_statements",
+      "target_document_ids": [
+        "sec_amzn_10_k_0001018724_26_000004"
+      ],
+      "relevant_pages": [
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86
+      ],
+      "relevant_sections": [
+        "item_8_financial_statements"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "financial statements"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_amzn_10_k_0001018724_26_000004_item_9a_controls",
+      "query": "In AMZN 10-K 2026-02-06 0001018724-26-000004, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_amzn_10_k_0001018724_26_000004"
+      ],
+      "relevant_pages": [
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_amzn_10_k_0001018724_25_000004_item_1a_risk_factors",
+      "query": "In AMZN 10-K 2025-02-07 0001018724-25-000004, where is Item 1A Risk Factors discussed?",
+      "category": "sec_section_item_1a_risk_factors",
+      "target_document_ids": [
+        "sec_amzn_10_k_0001018724_25_000004"
+      ],
+      "relevant_pages": [
+        15
+      ],
+      "relevant_sections": [
+        "item_1a_risk_factors"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "risk factors"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_amzn_10_k_0001018724_25_000004_item_9a_controls",
+      "query": "In AMZN 10-K 2025-02-07 0001018724-25-000004, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_amzn_10_k_0001018724_25_000004"
+      ],
+      "relevant_pages": [
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_26_000021_item_1_business",
+      "query": "In NVDA 10-K 2026-02-25 0001045810-26-000021, where is Item 1 Business discussed?",
+      "category": "sec_section_item_1_business",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_26_000021"
+      ],
+      "relevant_pages": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "relevant_sections": [
+        "item_1_business"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "business"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_26_000021_item_1a_risk_factors",
+      "query": "In NVDA 10-K 2026-02-25 0001045810-26-000021, where is Item 1A Risk Factors discussed?",
+      "category": "sec_section_item_1a_risk_factors",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_26_000021"
+      ],
+      "relevant_pages": [
+        20
+      ],
+      "relevant_sections": [
+        "item_1a_risk_factors"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "risk factors"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_26_000021_item_8_financial_statements",
+      "query": "In NVDA 10-K 2026-02-25 0001045810-26-000021, where is Item 8 Financial Statements discussed?",
+      "category": "sec_section_item_8_financial_statements",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_26_000021"
+      ],
+      "relevant_pages": [
+        65
+      ],
+      "relevant_sections": [
+        "item_8_financial_statements"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "financial statements"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_26_000021_item_9a_controls",
+      "query": "In NVDA 10-K 2026-02-25 0001045810-26-000021, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_26_000021"
+      ],
+      "relevant_pages": [
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_25_000023_item_1_business",
+      "query": "In NVDA 10-K 2025-02-26 0001045810-25-000023, where is Item 1 Business discussed?",
+      "category": "sec_section_item_1_business",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_25_000023"
+      ],
+      "relevant_pages": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "relevant_sections": [
+        "item_1_business"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "business"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_25_000023_item_1a_risk_factors",
+      "query": "In NVDA 10-K 2025-02-26 0001045810-25-000023, where is Item 1A Risk Factors discussed?",
+      "category": "sec_section_item_1a_risk_factors",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_25_000023"
+      ],
+      "relevant_pages": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53
+      ],
+      "relevant_sections": [
+        "item_1a_risk_factors"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "risk factors"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_25_000023_item_7_mda",
+      "query": "In NVDA 10-K 2025-02-26 0001045810-25-000023, where is Item 7 Management's Discussion and Analysis discussed?",
+      "category": "sec_section_item_7_mda",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_25_000023"
+      ],
+      "relevant_pages": [
+        54
+      ],
+      "relevant_sections": [
+        "item_7_mda"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "management",
+        "discussion",
+        "analysis"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_25_000023_item_8_financial_statements",
+      "query": "In NVDA 10-K 2025-02-26 0001045810-25-000023, where is Item 8 Financial Statements discussed?",
+      "category": "sec_section_item_8_financial_statements",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_25_000023"
+      ],
+      "relevant_pages": [
+        66
+      ],
+      "relevant_sections": [
+        "item_8_financial_statements"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "financial statements"
+      ],
+      "citation_required": true
+    },
+    {
+      "query_id": "sec_nvda_10_k_0001045810_25_000023_item_9a_controls",
+      "query": "In NVDA 10-K 2025-02-26 0001045810-25-000023, where is Item 9A Controls and Procedures discussed?",
+      "category": "sec_section_item_9a_controls",
+      "target_document_ids": [
+        "sec_nvda_10_k_0001045810_25_000023"
+      ],
+      "relevant_pages": [
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109
+      ],
+      "relevant_sections": [
+        "item_9a_controls"
+      ],
+      "relevant_chunk_ids": [],
+      "expected_answer_hints": [
+        "controls",
+        "procedures"
+      ],
+      "citation_required": true
+    }
+  ]
+}
