@@ -10,12 +10,10 @@ import redis.asyncio as aioredis
 from minio import Minio
 from prometheus_client import Counter, Histogram, make_asgi_app
 
-from config import Settings
-from db import get_db, engine
-from models import Document, DocumentStatus, Base
-from ocr_engine import OCREngine
-from queue import TaskQueue
-from worker import WorkerManager
+from .config import Settings
+from .db import get_db, engine
+from .models import Document, DocumentStatus, Base
+from .task_queue import TaskQueue
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -33,8 +31,8 @@ app.mount("/metrics", metrics_app)
 redis_client: Optional[aioredis.Redis] = None
 task_queue: Optional[TaskQueue] = None
 minio_client: Optional[Minio] = None
-ocr_engine: Optional[OCREngine] = None
-worker_manager: Optional[WorkerManager] = None
+ocr_engine: Optional[object] = None
+worker_manager: Optional[object] = None
 
 VALID_MIME_TYPES = {
     'application/pdf',
@@ -65,9 +63,11 @@ async def startup():
     if not minio_client.bucket_exists(settings.minio_bucket):
         minio_client.make_bucket(settings.minio_bucket)
 
-    ocr_engine = OCREngine(settings)
-
     if settings.enable_workers:
+        from .ocr_engine import OCREngine
+        from .worker import WorkerManager
+
+        ocr_engine = OCREngine(settings)
         worker_manager = WorkerManager(task_queue, redis_client, minio_client, ocr_engine, settings)
         await worker_manager.start()
         logger.info("Ingestion service and workers started successfully")

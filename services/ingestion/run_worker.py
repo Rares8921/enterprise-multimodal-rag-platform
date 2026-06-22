@@ -4,12 +4,12 @@ import logging
 import redis.asyncio as aioredis
 from minio import Minio
 
-from config import Settings
-from db import engine
-from models import Base
-from ocr_engine import OCREngine
-from queue import TaskQueue
-from worker import WorkerManager
+from .config import Settings
+from .db import engine
+from .models import Base
+from .ocr_engine import OCREngine
+from .task_queue import TaskQueue
+from .worker import WorkerManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

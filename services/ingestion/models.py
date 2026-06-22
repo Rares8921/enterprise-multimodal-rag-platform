@@ -2,7 +2,7 @@
 Database models
 """
 from enum import Enum
-from sqlalchemy import Index, Boolean, Column, DateTime, Enum as SQLEnum, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Index, Boolean, Column, DateTime, Enum as SQLEnum, Integer, JSON, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 import uuid
@@ -46,7 +46,7 @@ class Document(Base):
         ),
         nullable=False,
         default=DocumentStatus.UPLOADED,
-        server_default=Text("'uploaded'"),
+        server_default=text("'UPLOADED'"),
         index=True,
     )
 

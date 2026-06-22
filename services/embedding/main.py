@@ -17,7 +17,7 @@ sys.path.insert(0, str(SERVICES_DIR))
 from config import Settings
 from EmbeddingGenerator import EmbeddingGenerator
 from VectorStore import VectorStore
-from services.ingestion.queue import TaskQueue
+from services.ingestion.task_queue import TaskQueue
 
 settings = Settings()
 

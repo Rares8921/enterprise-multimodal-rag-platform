@@ -21,7 +21,7 @@ sys.path.insert(0, str(SERVICES_DIR))
 
 from config import Settings
 from LayoutParser import LayoutParser
-from services.ingestion.queue import TaskQueue
+from services.ingestion.task_queue import TaskQueue
 
 # Settings
 settings = Settings()
