@@ -354,3 +354,28 @@
 - The run is local real-service evidence over a small public SEC corpus, not production retrieval quality.
 - Top-k section retrieval is weak; contents/index pages and adjacent-year filings remain major failure modes.
 - Raw SEC HTML/PDF files, raw JSON reports, model cache, and local generated labels remain local/ignored unless intentionally sanitized and promoted.
+## SEC Section Retrieval Improvement Diagnosis
+
+### Failure Analysis
+
+- Current section-level baseline remains: Recall@1 `0.1034`, Recall@3 `0.2759`, Recall@5 `0.3448`, MRR `0.1879`, nDCG@5 `0.2269`, candidate-pool misses `13` of 29.
+- Rank-1 misses: `26` of 29.
+- Candidate-pool misses: `13` of 29.
+- Same target document but wrong/unknown section at rank 1: `13` queries.
+- Adjacent-year or same-ticker wrong document at rank 1: `11` queries.
+- Wrong-company rank-1 top result: `2` queries.
+- Top result looked contents-like or mapped to no section for `19` rank-1 misses.
+- Weakest categories by Recall@5: Item 7 MD&A (`0.0000`), Item 7A market risk (`0.0000`), Item 8 financial statements (`0.2000`), Item 1 business (`0.2500`).
+
+### Metadata Gap
+
+- Live Pinecone metadata in namespace `tenant_eval_local` contains only `chunk_id`, `doc_id`, `doc_type`, `filename`, `page`, `tenant_id`, `text`, and `type`.
+- Current chunks do not contain `section_id`, `section_name`, `section_confidence`, `ticker`, `company_name`, `filing_date`, `form_type`, `accession_number`, `page_number`, or manifest-level `document_id`.
+- This makes section-aware reranking impossible from indexed metadata alone and explains why contents/index chunks and adjacent-year filings survive reranking.
+
+### Planned Improvement
+
+- Preserve the old namespace and create `tenant_eval_sec_sections_v2` for enriched metadata.
+- Enrich existing indexed vectors with public SEC manifest metadata and conservative section labels instead of re-acquiring documents or overwriting the baseline.
+- Add SEC-aware reranking that uses only query-visible facts and indexed metadata: section synonyms, explicit ticker/company, explicit filing date/year/accession, and table-of-contents downranking.
+- Run ablations against the same section manifest and report all results, including regressions.
