@@ -24,6 +24,7 @@ CONTENT_KEYS = {
 PATH_KEYS = {"manifest_path", "pdf_root", "file_root", "target_path", "output_pdf_dir", "output_file_dir"}
 QUERY_TEXT_KEYS = {"query"}
 SECRET_PATTERNS = [re.compile(r"(?i)(api[_-]?key|authorization|bearer|token|secret)")]
+PUBLIC_TOKEN_METRIC_KEYS = {"estimated_tokens_used", "tokens_used", "input_tokens", "output_tokens", "total_tokens"}
 ABSOLUTE_WINDOWS_PATH = re.compile(r"[A-Za-z]:\\[^\s`|]+")
 ABSOLUTE_POSIX_PATH = re.compile(r"(?<![A-Za-z0-9_])/(?:[^\s`|]+/)+[^\s`|]+")
 
@@ -111,6 +112,8 @@ def _sanitize_value(value: Any, *, allow_query_text: bool) -> Any:
 
 
 def _is_secret_key(key: str) -> bool:
+    if key in PUBLIC_TOKEN_METRIC_KEYS:
+        return False
     return any(pattern.search(key) for pattern in SECRET_PATTERNS)
 
 
@@ -190,9 +193,17 @@ def _markdown_summary(report: dict[str, Any]) -> str:
         lines.extend([
             "## Answer Proxy",
             "",
+            f"Failures: `{answer.get('failure_count', 'unknown')}`",
             f"Non-empty answer rate: `{answer.get('non_empty_answer_rate')}`",
             f"Citation presence rate for required citations: `{answer.get('citation_presence_rate_required')}`",
             f"Average expected-hint overlap: `{answer.get('average_expected_hint_overlap')}`",
+            f"Estimated tokens used: `{answer.get('estimated_tokens_used', 'unknown')}`",
+            f"Average latency ms: `{answer.get('average_latency_ms', 'unknown')}`",
+            f"Average retrieved context count: `{answer.get('average_retrieval_count', 'unknown')}`",
+            f"Model counts: `{json.dumps(answer.get('model_counts', {}), sort_keys=True)}`",
+            f"Retrieval strategy counts: `{json.dumps(answer.get('retrieval_strategy_counts', {}), sort_keys=True)}`",
+            f"Answer delay seconds: `{answer.get('answer_delay_seconds', 0)}`",
+            f"Failure categories: `{json.dumps(answer.get('failure_errors', {}), sort_keys=True)}`",
             "",
         ])
     lines.extend([

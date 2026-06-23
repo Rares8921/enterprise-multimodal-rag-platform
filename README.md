@@ -342,6 +342,14 @@ Previous section baseline from `benchmarks/corpora/results/sanitized_sec_section
 
 Interpretation: the v2 run shows that section-aware indexed metadata and SEC-aware reranking materially improve this controlled local SEC section benchmark. It does not prove production retrieval quality, legal correctness, financial correctness, or chunk-level retrieval quality.
 
+Current public SEC answer proxy evidence from `benchmarks/corpora/results/sanitized_sec_section_answer_summary.md`:
+
+| Corpus | Queries | Retrieval setup | Model | Answer delay | Failures | Non-empty answer rate | Required citation presence | Expected-hint overlap |
+|---|---:|---|---|---:|---:|---:|---:|---:|
+| 8 public SEC 10-K filings | 29 | `tenant_eval_sec_sections_v2`, SEC-aware rerank, candidate pool 100 | Gemini | 15s | 18 | 0.37931 | 0.344828 | 0.344828 |
+
+Interpretation: this is a lightweight answer/citation proxy over the same local SEC retrieval setup. It records that 11 of 29 queries produced non-empty Gemini answers, 10 of 29 citation-required queries included citation markers, and 18 queries failed through service/provider failure categories. It does not prove factual, legal, financial, or semantic answer correctness.
+
 ## Supported Claims
 
 - The repository contains code for OCR-based document ingestion and LayoutLMv3 layout parsing.
@@ -350,6 +358,7 @@ Interpretation: the v2 run shows that section-aware indexed metadata and SEC-awa
 - The repository contains a real-service evaluation harness for curated PDF corpora, supporting manifest validation, ingestion runs, Pinecone-backed retrieval evaluation, optional answer proxy evaluation, and report generation.
 - The repository contains public corpus acquisition tooling for CUAD and SEC EDGAR that generates manifest-compatible corpora while keeping raw files ignored by default.
 - The repository contains checked-in sanitized SEC EDGAR section-level retrieval reports from local Pinecone-backed runs, including a v2 SEC-aware reranking ablation with explicit limitations.
+- The repository contains a checked-in sanitized SEC EDGAR answer proxy report over the v2 retrieval setup, reporting non-empty answer rate, citation presence, expected-hint overlap, failures, model counts, and limitations.
 - The repository contains a public-safe synthetic PDF corpus generator for smoke-testing the PDF ingestion workflow.
 - The repository contains preflight and report-sanitization tooling for safer local document RAG evaluation runs.
 - The repository contains typed, tested LLM routing with cost-aware model selection.
@@ -367,10 +376,10 @@ Interpretation: the v2 run shows that section-aware indexed metadata and SEC-awa
 - No production security guarantee is claimed.
 - No real LLM answer accuracy is claimed from the mock benchmark.
 - No production retrieval quality or real Pinecone performance is claimed from the synthetic retrieval benchmark.
-- No real PDF/Pinecone result beyond the checked-in sanitized SEC section-level local reports is claimed.
+- No real PDF/Pinecone result beyond the checked-in sanitized SEC section-level local retrieval and answer proxy reports is claimed.
 - No customer/private document evaluation is claimed.
-- No CUAD evaluation result or SEC answer-quality result is claimed.
-- No legal or financial correctness is claimed from the synthetic retrieval benchmark, synthetic PDF smoke corpus, or SEC section-level retrieval report.
+- No CUAD evaluation result is claimed. No SEC answer correctness result is claimed beyond the checked-in lightweight answer proxy metrics.
+- No legal or financial correctness is claimed from the synthetic retrieval benchmark, synthetic PDF smoke corpus, SEC section-level retrieval report, or SEC answer proxy report.
 - No claim is made that BM25 is a separate first-stage index; current hybrid retrieval reranks vector candidates with BM25.
 - No LayoutLMv3 production accuracy number is claimed.
 
@@ -378,7 +387,8 @@ Interpretation: the v2 run shows that section-aware indexed metadata and SEC-awa
 
 - The LLM benchmark is mock/synthetic and uses estimated latency/cost.
 - The synthetic retrieval benchmark is offline and uses simulated vector scores; the SEC report is a separate local Pinecone-backed run.
-- The committed SEC reports are section-level only. The best v2 run still has 6 candidate-pool misses out of 29 queries and does not include chunk-level labels or answer-quality labels.
+- The committed SEC retrieval reports are section-level only. The best v2 run still has 6 candidate-pool misses out of 29 queries and does not include chunk-level labels.
+- The committed SEC answer proxy report is partial: 18 of 29 queries failed through service/provider failure categories, and the reported citation/hint metrics are not semantic correctness.
 - Public acquisition tooling has not produced a committed CUAD evaluation result in this repository state.
 - SEC filings are often HTML and may need local rendering/conversion before PDF ingestion.
 - Hybrid retrieval is currently a reranking layer over vector candidates, not a separate first-stage BM25 index.

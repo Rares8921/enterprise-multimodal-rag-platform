@@ -120,7 +120,7 @@ The harness supports:
 - `retrieve`: query a configured Pinecone index/namespace, apply the BM25 hybrid reranker or opt-in SEC-aware reranker, and compute Recall@k, MRR, and nDCG when labels are available
 - `answer`: optionally call the query API and record lightweight answer proxy metrics
 
-This harness enables local real-service case-study runs over curated PDF corpora. Sanitized SEC EDGAR section-level retrieval reports are checked in, including a v2 SEC-aware reranking ablation, but they remain local public-corpus evidence with explicit limitations, not production retrieval-quality evidence.
+This harness enables local real-service case-study runs over curated PDF corpora. Sanitized SEC EDGAR section-level retrieval reports are checked in, including a v2 SEC-aware reranking ablation, and a sanitized SEC answer proxy report is checked in for the v2 retrieval setup. They remain local public-corpus evidence with explicit limitations, not production retrieval-quality or answer-correctness evidence.
 
 ## Public Corpus Readiness Flow
 
@@ -209,7 +209,8 @@ Implemented mechanisms include:
 ## Current Gaps
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates; the synthetic benchmark remains offline and separate from the SEC Pinecone report.
-- The checked-in SEC reports are section-level only and do not include chunk-level labels or answer correctness evaluation. The best v2 report still has 6 candidate-pool misses out of 29 queries.
+- The checked-in SEC retrieval reports are section-level only and do not include chunk-level labels. The best v2 report still has 6 candidate-pool misses out of 29 queries.
+- The checked-in SEC answer report is a lightweight proxy only: 18 of 29 queries failed, and non-empty answer, citation marker, and expected-hint overlap metrics do not prove answer correctness.
 - Public CUAD acquisition, preflight, synthetic PDF smoke, and report promotion tooling exist, but no CUAD evaluation report is checked in yet.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.

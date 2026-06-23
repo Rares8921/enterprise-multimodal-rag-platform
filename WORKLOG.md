@@ -520,3 +520,60 @@
 - The answer run must still be repeated after restarting the LLM orchestrator with the new model setting.
 - Local Mistral remains unavailable; the SEC answer run should continue forcing Gemini.
 - The first failed answer run remains local raw evidence only and is not promoted as answer-quality evidence.
+
+## SEC Answer Proxy Evaluation
+
+### Completed Work
+
+- Ran the live SEC answer path over `benchmarks/corpora/sec_edgar_section_manifest.generated.json` using the v2 Pinecone namespace `tenant_eval_sec_sections_v2`, SEC-aware reranking, candidate pool 100, Gemini model selection, and the local query API.
+- Fixed small blockers found during the run: configurable Gemini model name, service-relative LLM prompt template resolution, committed sanitized-report preflight handling, and optional answer delay for live provider request limits.
+- Completed a delayed answer run with `--answer-delay-seconds 15` and promoted a sanitized public summary.
+- Improved report promotion so sanitized answer summaries preserve safe aggregate fields such as failures, model counts, retrieval strategy counts, token estimates, latency, and failure categories while still redacting raw answers, contexts, requests, local paths, and secrets.
+
+### Files Changed
+
+- `services/llm-orchestrator/config.py`
+- `services/llm-orchestrator/model_wrapper/GeminiLLM.py`
+- `services/llm-orchestrator/main.py`
+- `services/llm-orchestrator/prompt_manager.py`
+- `benchmarks/e2e_document_rag_eval.py`
+- `benchmarks/promote_document_rag_report.py`
+- `benchmarks/corpora/results/sanitized_sec_section_answer_summary.md`
+- `tests/unit/test_gemini_model_wrapper.py`
+- `tests/unit/test_llm_routing.py`
+- `tests/benchmark/test_public_corpus_workflow.py`
+- `README.md`
+- `docs/architecture.md`
+- `docs/case-study.md`
+- `PROJECT_EVIDENCE.md`
+
+### Tests and Checks Run
+
+- `python -m py_compile services\llm-orchestrator\config.py services\llm-orchestrator\model_wrapper\GeminiLLM.py services\llm-orchestrator\main.py`
+- `python -m py_compile services\llm-orchestrator\prompt_manager.py services\llm-orchestrator\main.py`
+- `python -m py_compile benchmarks\e2e_document_rag_eval.py benchmarks\promote_document_rag_report.py`
+- `python -m pytest tests\unit\test_gemini_model_wrapper.py tests\unit\test_llm_routing.py -q` - 13 passed after prompt path coverage.
+- `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 17 passed.
+- Answer preflight: `python benchmarks\e2e_document_rag_eval.py preflight --preflight-target answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --run-id sec_section_answer_preflight_v3`.
+- Answer run: `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --sec-aware-rerank --model-choice gemini --answer-disable-target-doc-filter --answer-delay-seconds 15 --request-timeout-seconds 240 --run-id sec_section_answer_v4_rate_limited`.
+- Report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v4_rate_limited.json --output-md benchmarks\corpora\results\sanitized_sec_section_answer_summary.md`.
+
+### Results
+
+- Corpus: 8 public SEC 10-K filings, 29 section-level citation-required queries.
+- Model counts: `{"gemini": 11}`.
+- Failures: `18`.
+- Non-empty answer rate: `0.37931`.
+- Citation presence rate for required citations: `0.344828`.
+- Average expected-hint overlap: `0.344828`.
+- Estimated tokens used: `28098`.
+- Average retrieved context count: `5`.
+- Failure categories: LLM unavailable, LLM circuit breaker open, and request timeout as reported by the query API.
+
+### Remaining Risks and Limitations
+
+- The run is a lightweight answer proxy, not a semantic correctness evaluation.
+- Citation presence means citation markers were extracted; it does not prove citations are correct.
+- Expected-hint overlap is lexical and does not prove financial correctness.
+- Provider quota and local-service failures limited the run; no provider/model accuracy, uptime, QPS, SLA, or cost claim is supported.
+- Raw SEC files, raw answer reports, and local service logs remain ignored local artifacts only.

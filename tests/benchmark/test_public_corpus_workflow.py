@@ -339,7 +339,7 @@ def test_report_promotion_sanitizes_paths_and_refuses_private(tmp_path):
             "pdf_root": str(tmp_path / "local_pdfs"),
             "documents": [{"document_id": "doc", "filename": "synthetic/doc.pdf", "doc_type": "legal_contract", "text_preview": "secret"}],
         },
-        "answer": {"queries": [{"query_id": "q1", "query": "sensitive query", "answer": "raw answer"}]},
+        "answer": {"estimated_tokens_used": 42, "queries": [{"query_id": "q1", "query": "sensitive query", "answer": "raw answer", "tokens_used": 7}]},
         "limitations": ["local only"],
         "unsupported_claims": ["production quality"],
     }
@@ -349,8 +349,10 @@ def test_report_promotion_sanitizes_paths_and_refuses_private(tmp_path):
     promote_report(report_path, output_markdown=tmp_path / "sanitized.md", output_json=output_json)
     sanitized = json.loads(output_json.read_text(encoding="utf-8"))
     assert "manifest_path" not in sanitized["corpus"]
+    assert sanitized["answer"]["estimated_tokens_used"] == 42
     assert sanitized["answer"]["queries"][0]["query"] == "[removed-query-text]"
     assert sanitized["answer"]["queries"][0]["answer"] == "[removed-content-field]"
+    assert sanitized["answer"]["queries"][0]["tokens_used"] == 7
 
     synthetic_report["corpus"]["mode"] = "private_local"
     report_path.write_text(json.dumps(synthetic_report), encoding="utf-8")
