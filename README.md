@@ -344,11 +344,11 @@ Interpretation: the v2 run shows that section-aware indexed metadata and SEC-awa
 
 Current public SEC answer proxy evidence from `benchmarks/corpora/results/sanitized_sec_section_answer_summary.md`:
 
-| Corpus | Queries | Retrieval setup | Model | Answer delay | Failures | Non-empty answer rate | Required citation presence | Expected-hint overlap |
+| Corpus | Queries | Retrieval setup | Model | Delay/retry handling | Failures | Non-empty answer rate | Required citation presence | Expected-hint overlap |
 |---|---:|---|---|---:|---:|---:|---:|---:|
-| 8 public SEC 10-K filings | 29 | `tenant_eval_sec_sections_v2`, SEC-aware rerank, candidate pool 100 | Gemini | 15s | 18 | 0.37931 | 0.344828 | 0.344828 |
+| 8 public SEC 10-K filings | 29 | `tenant_eval_sec_sections_v2`, SEC-aware rerank, candidate pool 100 | Gemini | 15s source run plus failed-query retry at 30s delay, max 1 retry | 16 | 0.448276 | 0.413793 | 0.413793 |
 
-Interpretation: this is a lightweight answer/citation proxy over the same local SEC retrieval setup. It records that 11 of 29 queries produced non-empty Gemini answers, 10 of 29 citation-required queries included citation markers, and 18 queries failed through service/provider failure categories. It does not prove factual, legal, financial, or semantic answer correctness.
+Interpretation: this is a lightweight answer/citation proxy over the same local SEC retrieval setup. The combined v5 report preserves the original 29-query denominator, retries only the 18 failed v4 rows, recovers 2 additional answers, and still records 16 service/provider failures. It does not prove factual, legal, financial, or semantic answer correctness.
 
 ## Supported Claims
 
@@ -388,7 +388,7 @@ Interpretation: this is a lightweight answer/citation proxy over the same local 
 - The LLM benchmark is mock/synthetic and uses estimated latency/cost.
 - The synthetic retrieval benchmark is offline and uses simulated vector scores; the SEC report is a separate local Pinecone-backed run.
 - The committed SEC retrieval reports are section-level only. The best v2 run still has 6 candidate-pool misses out of 29 queries and does not include chunk-level labels.
-- The committed SEC answer proxy report is partial: 18 of 29 queries failed through service/provider failure categories, and the reported citation/hint metrics are not semantic correctness.
+- The committed SEC answer proxy report is partial: 16 of 29 queries failed through service/provider failure categories after one failed-query retry pass, and the reported citation/hint metrics are not semantic correctness.
 - Public acquisition tooling has not produced a committed CUAD evaluation result in this repository state.
 - SEC filings are often HTML and may need local rendering/conversion before PDF ingestion.
 - Hybrid retrieval is currently a reranking layer over vector candidates, not a separate first-stage BM25 index.

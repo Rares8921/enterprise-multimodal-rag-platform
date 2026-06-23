@@ -210,7 +210,7 @@ Implemented mechanisms include:
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates; the synthetic benchmark remains offline and separate from the SEC Pinecone report.
 - The checked-in SEC retrieval reports are section-level only and do not include chunk-level labels. The best v2 report still has 6 candidate-pool misses out of 29 queries.
-- The checked-in SEC answer report is a lightweight proxy only: 18 of 29 queries failed, and non-empty answer, citation marker, and expected-hint overlap metrics do not prove answer correctness.
+- The checked-in SEC answer report is a lightweight proxy only: 16 of 29 queries still failed after one failed-query retry pass, and non-empty answer, citation marker, and expected-hint overlap metrics do not prove answer correctness.
 - Public CUAD acquisition, preflight, synthetic PDF smoke, and report promotion tooling exist, but no CUAD evaluation report is checked in yet.
 - The LLM routing benchmark is mock/synthetic and does not measure real providers.
 - LayoutLMv3 code is present, but this documentation does not claim a validated production model accuracy number.

@@ -169,20 +169,20 @@ Sanitized real-service public SEC section-level retrieval reports are checked in
 
 Interpretation: document-level retrieval previously showed that the correct filing could usually be found, but section-level evaluation exposed table-of-contents, adjacent-year, and wrong-section failures. The v2 result shows that section-aware indexed metadata plus SEC-aware reranking materially improves this controlled local benchmark, with no Recall@5 regressions in the 29-query comparison. It is still local section-level evidence, not production retrieval quality or legal/financial correctness.
 
-A sanitized SEC answer proxy report is also checked in at `benchmarks/corpora/results/sanitized_sec_section_answer_summary.md`. It uses the v2 retrieval setup, Gemini, candidate pool 100, SEC-aware reranking, and a 15 second answer delay for provider rate limits.
+A sanitized SEC answer proxy report is also checked in at `benchmarks/corpora/results/sanitized_sec_section_answer_summary.md`. It uses the v2 retrieval setup, Gemini, candidate pool 100, SEC-aware reranking, and transparent failed-query retry handling for provider/service failures.
 
 | Queries | Failures | Non-empty answer rate | Required citation presence | Expected-hint overlap | Estimated tokens |
 |---:|---:|---:|---:|---:|---:|
-| 29 | 18 | 0.37931 | 0.344828 | 0.344828 | 28098 |
+| 29 | 16 | 0.448276 | 0.413793 | 0.413793 | 33363 |
 
-Interpretation: this is a lightweight answer/citation proxy, not an answer correctness benchmark. It shows that the live query path can produce grounded-looking responses for part of the SEC workload, but failures remain high and the metrics do not establish factual, legal, financial, or semantic correctness.
+Interpretation: this is a lightweight answer/citation proxy, not an answer correctness benchmark. The v5 combined report retries only failed v4 rows, recovers 2 additional answers, keeps the full 29-query denominator, and still has a high failure rate. The metrics do not establish factual, legal, financial, or semantic correctness.
 
 ## 9. Limitations
 
 - Hybrid retrieval is implemented as BM25 reranking over vector candidates, not as a separate first-stage BM25 index.
 - The synthetic retrieval benchmark is offline and uses simulated vector scores; the SEC section report is separate local Pinecone-backed evidence.
 - The SEC retrieval reports are section-level only, use approximate labels generated from rendered public filings, and do not include chunk-level labels.
-- The SEC answer report is a lightweight proxy only; 18 of 29 queries failed and citation/hint overlap metrics are not semantic correctness.
+- The SEC answer report is a lightweight proxy only; 16 of 29 queries still failed after one retry pass and citation/hint overlap metrics are not semantic correctness.
 - CUAD acquisition code exists, but no CUAD evaluation report is committed.
 - The LLM benchmark does not call real model providers.
 - Latency numbers are deterministic estimates, not measured provider latency.

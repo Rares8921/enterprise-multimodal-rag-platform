@@ -465,7 +465,17 @@ def test_report_promotion_sanitizes_paths_and_refuses_private(tmp_path):
             "pdf_root": str(tmp_path / "local_pdfs"),
             "documents": [{"document_id": "doc", "filename": "synthetic/doc.pdf", "doc_type": "legal_contract", "text_preview": "secret"}],
         },
-        "answer": {"estimated_tokens_used": 42, "queries": [{"query_id": "q1", "query": "sensitive query", "answer": "raw answer", "tokens_used": 7}]},
+        "answer": {
+            "estimated_tokens_used": 42,
+            "queries": [{"query_id": "q1", "query": "sensitive query", "answer": "raw answer", "tokens_used": 7}],
+            "resume": {
+                "source_report": "raw_previous.json",
+                "retry_query_count": 1,
+                "source_metrics": {"query_count": 2, "failure_count": 1, "non_empty_answer_rate": 0.5, "citation_presence_rate_required": 0.5, "average_expected_hint_overlap": 0.5, "estimated_tokens_used": 4},
+                "retry_metrics": {"query_count": 1, "failure_count": 0, "non_empty_answer_rate": 1.0, "citation_presence_rate_required": 1.0, "average_expected_hint_overlap": 1.0, "estimated_tokens_used": 7},
+                "combined_metrics": {"query_count": 2, "failure_count": 0, "non_empty_answer_rate": 1.0, "citation_presence_rate_required": 1.0, "average_expected_hint_overlap": 1.0, "estimated_tokens_used": 11},
+            },
+        },
         "limitations": ["local only"],
         "unsupported_claims": ["production quality"],
     }
@@ -479,6 +489,9 @@ def test_report_promotion_sanitizes_paths_and_refuses_private(tmp_path):
     assert sanitized["answer"]["queries"][0]["query"] == "[removed-query-text]"
     assert sanitized["answer"]["queries"][0]["answer"] == "[removed-content-field]"
     assert sanitized["answer"]["queries"][0]["tokens_used"] == 7
+    markdown = (tmp_path / "sanitized.md").read_text(encoding="utf-8")
+    assert "## Answer Resume" in markdown
+    assert "| combined | 2 | 0 | 1.0 | 1.0 | 1.0 | 11 |" in markdown
 
     synthetic_report["corpus"]["mode"] = "private_local"
     report_path.write_text(json.dumps(synthetic_report), encoding="utf-8")

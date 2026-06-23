@@ -528,7 +528,9 @@
 - Ran the live SEC answer path over `benchmarks/corpora/sec_edgar_section_manifest.generated.json` using the v2 Pinecone namespace `tenant_eval_sec_sections_v2`, SEC-aware reranking, candidate pool 100, Gemini model selection, and the local query API.
 - Fixed small blockers found during the run: configurable Gemini model name, service-relative LLM prompt template resolution, committed sanitized-report preflight handling, and optional answer delay for live provider request limits.
 - Completed a delayed answer run with `--answer-delay-seconds 15` and promoted a sanitized public summary.
-- Improved report promotion so sanitized answer summaries preserve safe aggregate fields such as failures, model counts, retrieval strategy counts, token estimates, latency, and failure categories while still redacting raw answers, contexts, requests, local paths, and secrets.
+- Added failed-query resume/retry support for answer mode so failed rows from a prior report can be retried transparently without dropping the original 29-query denominator.
+- Retried the 18 failed v4 answer rows with a 30 second delay, one retry per failed query, and a 45 second cooldown after failed attempts.
+- Improved report promotion so sanitized answer summaries preserve safe aggregate fields such as failures, model counts, retrieval strategy counts, token estimates, latency, failure categories, and retry/resume tables while still redacting raw answers, contexts, requests, local paths, and secrets.
 
 ### Files Changed
 
@@ -553,27 +555,25 @@
 - `python -m py_compile services\llm-orchestrator\prompt_manager.py services\llm-orchestrator\main.py`
 - `python -m py_compile benchmarks\e2e_document_rag_eval.py benchmarks\promote_document_rag_report.py`
 - `python -m pytest tests\unit\test_gemini_model_wrapper.py tests\unit\test_llm_routing.py -q` - 13 passed after prompt path coverage.
-- `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 17 passed.
+- `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` - 18 passed after answer resume/report-promotion coverage.
 - Answer preflight: `python benchmarks\e2e_document_rag_eval.py preflight --preflight-target answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --run-id sec_section_answer_preflight_v3`.
 - Answer run: `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --sec-aware-rerank --model-choice gemini --answer-disable-target-doc-filter --answer-delay-seconds 15 --request-timeout-seconds 240 --run-id sec_section_answer_v4_rate_limited`.
-- Report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v4_rate_limited.json --output-md benchmarks\corpora\results\sanitized_sec_section_answer_summary.md`.
+- Retry/combined answer run: `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --sec-aware-rerank --model-choice gemini --answer-disable-target-doc-filter --answer-delay-seconds 30 --answer-retry-failed-from benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v4_rate_limited.json --answer-max-retries 1 --answer-retry-cooldown-seconds 45 --request-timeout-seconds 300 --run-id sec_section_answer_v5_combined`.
+- Report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v5_combined.json --output-md benchmarks\corpora\results\sanitized_sec_section_answer_summary.md`.
 
 ### Results
 
 - Corpus: 8 public SEC 10-K filings, 29 section-level citation-required queries.
-- Model counts: `{"gemini": 11}`.
-- Failures: `18`.
-- Non-empty answer rate: `0.37931`.
-- Citation presence rate for required citations: `0.344828`.
-- Average expected-hint overlap: `0.344828`.
-- Estimated tokens used: `28098`.
+- Source v4 result: 29 queries, 18 failures, non-empty answer rate `0.37931`, required citation presence `0.344828`, expected-hint overlap `0.344828`, estimated tokens `28098`, model counts `{"gemini": 11}`.
+- Retry-only result: 18 retried failed queries, 16 failures, non-empty answer rate `0.111111`, required citation presence `0.111111`, expected-hint overlap `0.111111`, estimated tokens `5265`, model counts `{"gemini": 2}`.
+- Combined v5 result: 29 queries, 16 failures, non-empty answer rate `0.448276`, required citation presence `0.413793`, expected-hint overlap `0.413793`, estimated tokens `33363`, model counts `{"gemini": 13}`.
 - Average retrieved context count: `5`.
-- Failure categories: LLM unavailable, LLM circuit breaker open, and request timeout as reported by the query API.
+- Failure categories: LLM unavailable from the query API in the combined report; local logs from the retry run showed Gemini free-tier quota exhaustion and an unavailable local Mistral fallback, but those logs remain ignored local artifacts.
 
 ### Remaining Risks and Limitations
 
 - The run is a lightweight answer proxy, not a semantic correctness evaluation.
 - Citation presence means citation markers were extracted; it does not prove citations are correct.
 - Expected-hint overlap is lexical and does not prove financial correctness.
-- Provider quota and local-service failures limited the run; no provider/model accuracy, uptime, QPS, SLA, or cost claim is supported.
+- Provider quota and local-service failures still limited the run; no provider/model accuracy, uptime, QPS, SLA, or cost claim is supported.
 - Raw SEC files, raw answer reports, and local service logs remain ignored local artifacts only.

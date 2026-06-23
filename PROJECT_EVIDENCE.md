@@ -237,7 +237,7 @@ Claim:
 Ran a bounded SEC public-corpus answer/citation proxy evaluation over the Pinecone-backed retrieval pipeline, reporting non-empty answer rate, citation presence, expected-hint overlap, failures, and explicit limitations.
 
 Evidence:
-The answer mode called the local query API over the SEC section manifest using the v2 Pinecone namespace `tenant_eval_sec_sections_v2`, SEC-aware reranking, candidate pool 100, Gemini model selection, and a 15 second inter-query delay for live provider rate limits. The sanitized report records aggregate answer proxy metrics and failure categories while omitting raw SEC text, raw answers, local paths, and secrets.
+The answer mode called the local query API over the SEC section manifest using the v2 Pinecone namespace `tenant_eval_sec_sections_v2`, SEC-aware reranking, candidate pool 100, Gemini model selection, and live-provider delay controls. Failed-query resume support retried only the failed rows from the prior v4 run and produced a combined v5 report that keeps the full 29-query denominator. The sanitized report records aggregate answer proxy metrics, retry/resume metrics, and failure categories while omitting raw SEC text, raw answers, local paths, and secrets.
 
 Files:
 - `benchmarks/e2e_document_rag_eval.py`
@@ -247,14 +247,17 @@ Files:
 - `tests/benchmark/test_public_corpus_workflow.py`
 
 Validation:
-- Answer run: `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --sec-aware-rerank --model-choice gemini --answer-disable-target-doc-filter --answer-delay-seconds 15 --request-timeout-seconds 240 --run-id sec_section_answer_v4_rate_limited`.
-- Sanitized report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v4_rate_limited.json --output-md benchmarks\corpora\results\sanitized_sec_section_answer_summary.md`.
-- Focused tests: `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` passed with 17 tests.
-- Result: 29 queries, 18 failures, non-empty answer rate `0.37931`, required citation presence `0.344828`, expected-hint overlap `0.344828`, estimated tokens `28098`, model counts `{"gemini": 11}`.
+- Source answer run: `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --sec-aware-rerank --model-choice gemini --answer-disable-target-doc-filter --answer-delay-seconds 15 --request-timeout-seconds 240 --run-id sec_section_answer_v4_rate_limited`.
+- Retry/combined answer run: `python benchmarks\e2e_document_rag_eval.py answer --manifest benchmarks\corpora\sec_edgar_section_manifest.generated.json --pdf-root benchmarks\corpora\local_pdfs --tenant-id tenant_eval_sec_sections_v2 --query-api-url http://127.0.0.1:8000 --ingestion-run benchmarks\corpora\results\document_rag_eval_ingest_sec_ingest.json --retrieval-candidate-pool 100 --sec-aware-rerank --model-choice gemini --answer-disable-target-doc-filter --answer-delay-seconds 30 --answer-retry-failed-from benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v4_rate_limited.json --answer-max-retries 1 --answer-retry-cooldown-seconds 45 --request-timeout-seconds 300 --run-id sec_section_answer_v5_combined`.
+- Sanitized report promotion: `python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\document_rag_eval_answer_sec_section_answer_v5_combined.json --output-md benchmarks\corpora\results\sanitized_sec_section_answer_summary.md`.
+- Focused tests: `python -m pytest tests\benchmark\test_public_corpus_workflow.py -q` passed with 18 tests.
+- Source v4 result: 29 queries, 18 failures, non-empty answer rate `0.37931`, required citation presence `0.344828`, expected-hint overlap `0.344828`, estimated tokens `28098`, model counts `{"gemini": 11}`.
+- Retry-only result: 18 retried failed queries, 16 failures, non-empty answer rate `0.111111`, required citation presence `0.111111`, expected-hint overlap `0.111111`, estimated tokens `5265`, model counts `{"gemini": 2}`.
+- Combined v5 result: 29 queries, 16 failures, non-empty answer rate `0.448276`, required citation presence `0.413793`, expected-hint overlap `0.413793`, estimated tokens `33363`, model counts `{"gemini": 13}`.
 
 Limitations:
 - This is a local real-service answer proxy run, not an answer correctness benchmark.
-- Failure rate is high: 18 of 29 queries failed through query-service/provider failure categories.
+- Failure rate is high: 16 of 29 queries still failed through query-service/provider failure categories after one retry pass.
 - Citation presence is only marker extraction, not evidence that citations are correct or complete.
 - Expected-hint overlap is lexical and does not prove semantic, legal, or financial correctness.
 - No provider/model accuracy, production usage, production retrieval quality, uptime, QPS, SLA, billing, or cost-savings claim is supported.

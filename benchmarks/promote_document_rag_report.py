@@ -203,9 +203,29 @@ def _markdown_summary(report: dict[str, Any]) -> str:
             f"Model counts: `{json.dumps(answer.get('model_counts', {}), sort_keys=True)}`",
             f"Retrieval strategy counts: `{json.dumps(answer.get('retrieval_strategy_counts', {}), sort_keys=True)}`",
             f"Answer delay seconds: `{answer.get('answer_delay_seconds', 0)}`",
+            f"Max retries per failed query: `{answer.get('answer_max_retries', 0)}`",
+            f"Retry cooldown seconds: `{answer.get('answer_retry_cooldown_seconds', 0)}`",
             f"Failure categories: `{json.dumps(answer.get('failure_errors', {}), sort_keys=True)}`",
             "",
         ])
+        resume = answer.get("resume")
+        if isinstance(resume, dict):
+            source = resume.get("source_metrics", {}) or {}
+            retry = resume.get("retry_metrics", {}) or {}
+            combined = resume.get("combined_metrics", {}) or {}
+            lines.extend([
+                "## Answer Resume",
+                "",
+                f"Source report: `{resume.get('source_report', 'unknown')}`",
+                f"Retried queries: `{resume.get('retry_query_count', 'unknown')}`",
+                "",
+                "| Segment | Queries | Failures | Non-empty rate | Citation rate | Hint overlap | Tokens |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+                _answer_resume_row("source", source),
+                _answer_resume_row("retry-only", retry),
+                _answer_resume_row("combined", combined),
+                "",
+            ])
     lines.extend([
         "## Limitations",
         "",
@@ -226,6 +246,14 @@ def _markdown_summary(report: dict[str, Any]) -> str:
     lines.extend(f"- `{key}`: `{value}`" for key, value in sanitization.items())
     lines.append("")
     return "\n".join(lines)
+
+
+def _answer_resume_row(label: str, metrics: dict[str, Any]) -> str:
+    return (
+        f"| {label} | {metrics.get('query_count', 'unknown')} | {metrics.get('failure_count', 'unknown')} | "
+        f"{metrics.get('non_empty_answer_rate', 'unknown')} | {metrics.get('citation_presence_rate_required', 'unknown')} | "
+        f"{metrics.get('average_expected_hint_overlap', 'unknown')} | {metrics.get('estimated_tokens_used', 'unknown')} |"
+    )
 
 
 def _fmt(value: Any) -> str:
