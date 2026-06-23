@@ -276,43 +276,47 @@ def answer(args: argparse.Namespace) -> dict[str, Any]:
     ingestion_mapping = _load_ingestion_mapping(args.ingestion_run) if args.ingestion_run else {}
     headers = _auth_headers(args)
     document_types = {document.document_id: document.doc_type for document in loaded.manifest.documents}
-    rows: list[dict[str, Any]] = []
+    previous_answer = _load_answer_resume_source(args.answer_retry_failed_from) if args.answer_retry_failed_from else None
+    previous_rows = previous_answer.get("queries", []) if previous_answer else []
+    queries_to_run = list(loaded.manifest.queries)
+    if previous_answer:
+        failed_query_ids = {
+            row.get("query_id")
+            for row in previous_rows
+            if row.get("status") == "failed" and row.get("query_id")
+        }
+        queries_to_run = [query for query in loaded.manifest.queries if query.query_id in failed_query_ids]
 
+    retry_rows: list[dict[str, Any]] = []
     with httpx.Client(timeout=args.request_timeout_seconds) as client:
-        for index, query in enumerate(loaded.manifest.queries):
+        for index, query in enumerate(queries_to_run):
             request_payload = _build_answer_request_payload(args, query, ingestion_mapping, document_types)
-            row = _call_answer_query(client, args, headers, query, request_payload)
-            rows.append(row)
-            if args.answer_delay_seconds > 0 and index < len(loaded.manifest.queries) - 1:
+            row = _call_answer_query_with_retries(client, args, headers, query, request_payload)
+            retry_rows.append(row)
+            if args.answer_delay_seconds > 0 and index < len(queries_to_run) - 1:
                 time.sleep(args.answer_delay_seconds)
 
-    successful_rows = [row for row in rows if row.get("status") == "ok"]
-    report["answer"] = {
+    rows = _merge_answer_rows(loaded.manifest.queries, previous_rows, retry_rows) if previous_answer else retry_rows
+    answer_payload = {
         "mode": "optional_real_service_answer_proxy",
-        "query_count": len(rows),
-        "failure_count": sum(1 for row in rows if row.get("status") == "failed"),
-        "non_empty_answer_rate": _rate(row.get("answer_non_empty") for row in rows),
-        "citation_presence_rate_required": _required_citation_rate(rows),
-        "average_expected_hint_overlap": round(mean(row.get("expected_hint_overlap", 0.0) for row in rows), 6) if rows else 0.0,
-        "model_counts": dict(Counter(row.get("model_used") for row in rows if row.get("model_used"))),
-        "retrieval_strategy_counts": dict(Counter(row.get("retrieval_strategy") for row in rows if row.get("retrieval_strategy"))),
-        "estimated_tokens_used": sum(row.get("tokens_used", 0) or 0 for row in rows),
-        "average_confidence_score": round(mean(row.get("confidence_score", 0.0) for row in successful_rows if row.get("confidence_score") is not None), 6) if any(row.get("confidence_score") is not None for row in successful_rows) else 0.0,
-        "average_latency_ms": round(mean(row.get("latency_ms", 0.0) for row in successful_rows if row.get("latency_ms") is not None), 6) if any(row.get("latency_ms") is not None for row in successful_rows) else 0.0,
-        "average_retrieval_count": round(mean(row.get("retrieval_count", 0.0) for row in successful_rows if row.get("retrieval_count") is not None), 6) if any(row.get("retrieval_count") is not None for row in successful_rows) else 0.0,
-        "retrieval_candidate_pool": args.retrieval_candidate_pool,
-        "sec_aware_rerank": args.sec_aware_rerank,
-        "sec_metadata_weight": args.sec_metadata_weight if args.sec_aware_rerank else None,
-        "target_doc_filter_enabled": not args.answer_disable_target_doc_filter,
-        "answer_delay_seconds": args.answer_delay_seconds,
-        "failure_errors": dict(Counter(row.get("error") for row in rows if row.get("status") == "failed" and row.get("error"))),
+        **_answer_metric_summary(rows, args),
         "queries": rows,
     }
+    if previous_answer:
+        answer_payload["resume"] = {
+            "source_report": Path(args.answer_retry_failed_from).name,
+            "source_metrics": _compact_answer_metrics(previous_answer),
+            "retry_query_count": len(retry_rows),
+            "retry_metrics": _answer_metric_summary(retry_rows, args),
+            "combined_metrics": _compact_answer_metrics(answer_payload),
+        }
+    report["answer"] = answer_payload
     report["limitations"].extend([
         "Answer mode may call real LLM providers through the query service and can incur cost depending on local configuration.",
         "Answer evaluation is a lightweight proxy: non-empty answer, citation presence, and expected-hint overlap only.",
         "Expected-hint overlap is not semantic correctness and must not be described as legal or financial accuracy.",
         "Use --answer-delay-seconds for live providers with request-per-minute limits; delayed runs trade runtime for fewer provider quota failures.",
+        "Use --answer-retry-failed-from only to transparently retry failed prior rows; combined reports keep the full manifest denominator and preserve remaining failures.",
     ])
     return report
 
@@ -1135,6 +1139,78 @@ def _category_metrics(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         for category, category_rows in sorted(grouped.items())
     }
 
+def _load_answer_resume_source(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    answer_payload = payload.get("answer")
+    if not isinstance(answer_payload, dict) or not isinstance(answer_payload.get("queries"), list):
+        raise RuntimeError(f"Answer resume source does not contain answer queries: {path}")
+    return answer_payload
+
+
+def _merge_answer_rows(
+    manifest_queries: list[Any],
+    previous_rows: list[dict[str, Any]],
+    retry_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    previous_by_id = {row.get("query_id"): row for row in previous_rows if row.get("query_id")}
+    retry_by_id = {row.get("query_id"): row for row in retry_rows if row.get("query_id")}
+    merged: list[dict[str, Any]] = []
+    for query in manifest_queries:
+        query_id = query.query_id
+        if query_id in retry_by_id:
+            row = dict(retry_by_id[query_id])
+            row["resume_previous_status"] = previous_by_id.get(query_id, {}).get("status")
+            merged.append(row)
+        elif query_id in previous_by_id:
+            row = dict(previous_by_id[query_id])
+            row["resume_retained_from_previous_report"] = True
+            merged.append(row)
+    return merged
+
+
+def _answer_metric_summary(rows: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
+    successful_rows = [row for row in rows if row.get("status") == "ok"]
+    return {
+        "query_count": len(rows),
+        "failure_count": sum(1 for row in rows if row.get("status") == "failed"),
+        "non_empty_answer_rate": _rate(row.get("answer_non_empty") for row in rows),
+        "citation_presence_rate_required": _required_citation_rate(rows),
+        "average_expected_hint_overlap": round(mean(row.get("expected_hint_overlap", 0.0) for row in rows), 6) if rows else 0.0,
+        "model_counts": dict(Counter(row.get("model_used") for row in rows if row.get("model_used"))),
+        "retrieval_strategy_counts": dict(Counter(row.get("retrieval_strategy") for row in rows if row.get("retrieval_strategy"))),
+        "estimated_tokens_used": sum(row.get("tokens_used", 0) or 0 for row in rows),
+        "average_confidence_score": round(mean(row.get("confidence_score", 0.0) for row in successful_rows if row.get("confidence_score") is not None), 6) if any(row.get("confidence_score") is not None for row in successful_rows) else 0.0,
+        "average_latency_ms": round(mean(row.get("latency_ms", 0.0) for row in successful_rows if row.get("latency_ms") is not None), 6) if any(row.get("latency_ms") is not None for row in successful_rows) else 0.0,
+        "average_retrieval_count": round(mean(row.get("retrieval_count", 0.0) for row in successful_rows if row.get("retrieval_count") is not None), 6) if any(row.get("retrieval_count") is not None for row in successful_rows) else 0.0,
+        "retrieval_candidate_pool": args.retrieval_candidate_pool,
+        "sec_aware_rerank": args.sec_aware_rerank,
+        "sec_metadata_weight": args.sec_metadata_weight if args.sec_aware_rerank else None,
+        "target_doc_filter_enabled": not args.answer_disable_target_doc_filter,
+        "answer_delay_seconds": args.answer_delay_seconds,
+        "answer_max_retries": args.answer_max_retries,
+        "answer_retry_cooldown_seconds": args.answer_retry_cooldown_seconds,
+        "failure_errors": dict(Counter(row.get("error") for row in rows if row.get("status") == "failed" and row.get("error"))),
+    }
+
+
+def _compact_answer_metrics(answer_payload: dict[str, Any]) -> dict[str, Any]:
+    keys = [
+        "query_count",
+        "failure_count",
+        "non_empty_answer_rate",
+        "citation_presence_rate_required",
+        "average_expected_hint_overlap",
+        "estimated_tokens_used",
+        "model_counts",
+        "retrieval_strategy_counts",
+        "answer_delay_seconds",
+        "answer_max_retries",
+        "answer_retry_cooldown_seconds",
+        "failure_errors",
+    ]
+    return {key: answer_payload.get(key) for key in keys if key in answer_payload}
+
+
 def _build_answer_request_payload(
     args: argparse.Namespace,
     query: Any,
@@ -1164,6 +1240,34 @@ def _build_answer_request_payload(
     if len(mapped_targets) == 1 and not args.answer_disable_target_doc_filter:
         payload["doc_id"] = mapped_targets[0]
     return payload
+
+
+def _call_answer_query_with_retries(
+    client: httpx.Client,
+    args: argparse.Namespace,
+    headers: dict[str, str],
+    query: Any,
+    request_payload: dict[str, Any],
+) -> dict[str, Any]:
+    max_attempts = max(1, int(args.answer_max_retries) + 1)
+    attempts: list[dict[str, Any]] = []
+    row: dict[str, Any] | None = None
+    for attempt_index in range(max_attempts):
+        row = _call_answer_query(client, args, headers, query, request_payload)
+        attempts.append({
+            "attempt": attempt_index + 1,
+            "status": row.get("status"),
+            "error": row.get("error"),
+        })
+        if row.get("status") == "ok":
+            break
+        if attempt_index < max_attempts - 1 and args.answer_retry_cooldown_seconds > 0:
+            time.sleep(args.answer_retry_cooldown_seconds)
+    assert row is not None
+    row["attempt_count"] = len(attempts)
+    if len(attempts) > 1:
+        row["attempts"] = attempts
+    return row
 
 
 def _call_answer_query(
@@ -1306,6 +1410,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--answer-top-k", type=int, default=5)
     parser.add_argument("--answer-disable-target-doc-filter", action="store_true")
     parser.add_argument("--answer-delay-seconds", type=float, default=0.0)
+    parser.add_argument("--answer-retry-failed-from", type=Path, default=None)
+    parser.add_argument("--answer-max-retries", type=int, default=0)
+    parser.add_argument("--answer-retry-cooldown-seconds", type=float, default=0.0)
     parser.add_argument("--model-choice", default="auto")
     parser.add_argument("--agent", default=None)
     parser.add_argument("--write-csv", action="store_true")
