@@ -7,3 +7,5 @@
 !/results/.gitkeep
 !/results/sanitized_sec_retrieval_summary.md
 !/results/sanitized_sec_section_retrieval_summary.md
+!/results/sanitized_sec_section_retrieval_v2_summary.md
+!/results/sanitized_sec_section_answer_summary.md

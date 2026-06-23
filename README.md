@@ -273,7 +273,7 @@ python benchmarks\promote_document_rag_report.py benchmarks\corpora\results\docu
 
 Make targets mirror these commands: `corpus-generate-synthetic`, `corpus-acquire-cuad`, `corpus-acquire-sec`, `corpus-preflight`, `corpus-validate`, `corpus-ingest`, `corpus-retrieve`, `corpus-answer`, and `corpus-promote-report`.
 
-## Reading Benchmark Reports
+## Evidence And Benchmark Reports
 
 LLM routing reports include:
 

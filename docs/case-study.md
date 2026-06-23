@@ -124,7 +124,7 @@ It supports:
 - `retrieve`: query a configured Pinecone index/namespace, rerank candidates with the existing BM25 hybrid reranker, and compute Recall@k, MRR, and nDCG when labels exist
 - `answer`: optionally call the query API and record lightweight answer proxy metrics
 
-Corpus manifests live under `benchmarks/corpora/`; raw PDFs and local reports are ignored by default. This harness is intended for curated public or private-local case-study runs. No checked-in report currently proves real PDF retrieval quality, real legal/financial correctness, or production behavior.
+Corpus manifests live under `benchmarks/corpora/`; raw PDFs and local reports are ignored by default. This harness is intended for curated public or private-local case-study runs. The checked-in SEC reports provide bounded local public-corpus retrieval and answer-proxy evidence, but they do not prove production behavior, legal/financial correctness, or general retrieval quality.
 
 Public corpus readiness tooling now includes:
 

@@ -83,8 +83,6 @@ kubeconfig
 *.jpeg
 uploads/
 
-docs/
-
 # Benchmark local artifacts
 benchmarks/results/llm_routing_benchmark_*.csv
 benchmarks/results/llm_routing_benchmark_*.json
@@ -94,5 +92,3 @@ benchmarks/results/llm_routing_benchmark_*.md
 
 TODO.txt
 PROJECT_CONTEXT.md
-PROJECT_EVIDENCE.md
-WORKLOG.md
