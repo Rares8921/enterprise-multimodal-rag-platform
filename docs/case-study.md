@@ -192,12 +192,19 @@ Interpretation: this is a lightweight answer/citation proxy, not an answer corre
 - LayoutLMv3 model code exists, but no validated accuracy result is claimed here.
 - Some compose images use `latest`, which weakens environment reproducibility.
 
-## 10. What I Would Improve Next
+## 10. What I Learned
+
+- Document-level retrieval metrics can look reasonable while hiding section-level failures. The SEC section evaluation made that gap visible.
+- Synthetic benchmarks are useful for testing retrieval mechanics, but they need clear labels and limits before they become portfolio evidence.
+- Public-corpus evaluation needs careful infrastructure: manifests, ignored raw files, preflight checks, sanitization, and exact reproduction commands.
+- Answer/citation proxy runs are useful for integration debugging, but they should not be confused with answer correctness.
+
+## 11. What I Would Improve Next
 
 - Reduce the remaining SEC candidate-pool misses, add independently reviewed page/chunk labels, and test whether section metadata generalizes beyond the small 8-filing corpus.
 - Add a real-provider benchmark mode with opt-in credentials and strict report labeling.
 - Expand retrieval evaluation datasets with more labeled queries and independent label review.
 - Pin container image versions used by Docker Compose.
 - Move FastAPI startup/shutdown hooks to lifespan handlers.
-- Add CI smoke checks for unit tests and the mock benchmark.
-- Add an evidence file mapping each CV claim to code, tests, and benchmark output.
+- Broaden CI beyond the current smoke workflow to cover corpus manifest/report-promotion tests.
+- Keep `PROJECT_EVIDENCE.md` current as new claims or reports are added.

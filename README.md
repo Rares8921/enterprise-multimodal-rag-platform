@@ -1,6 +1,8 @@
 # Enterprise Multimodal RAG Platform
 
-Multiservice document intelligence prototype for OCR, LayoutLMv3 layout parsing, vector retrieval, LLM orchestration, monitoring, and reproducible mock benchmarking.
+Multiservice document intelligence prototype for OCR, LayoutLMv3 layout parsing, vector retrieval, LLM orchestration, monitoring, and reproducible benchmarking/evaluation.
+
+The project is best read as a technical case study: it combines service code, offline benchmarks, and a local public-corpus SEC evaluation. It is not presented as a production deployment, a legal/financial correctness system, or a customer-data benchmark.
 
 ## What This Project Demonstrates
 
@@ -25,13 +27,55 @@ Multiservice document intelligence prototype for OCR, LayoutLMv3 layout parsing,
 
 The platform is split into ingestion, OCR/layout workers, embedding generation, inference API, LLM orchestration, and monitoring services. Docker Compose wires these services to Redis, PostgreSQL, MinIO, Pinecone, MLflow, Prometheus, Grafana, and a local Mistral-compatible inference server.
 
+```mermaid
+flowchart LR
+  Upload["PDF/image upload"] --> Ingest["ingestion API"]
+  Ingest --> Store["MinIO + PostgreSQL + Redis"]
+  Store --> OCR["OCR worker"]
+  OCR --> Layout["LayoutLMv3 parser"]
+  Layout --> Embed["embedding worker"]
+  Embed --> Pinecone["Pinecone vectors"]
+  Query["User query"] --> Inference["inference API"]
+  Inference --> Pinecone
+  Pinecone --> Rerank["BM25 / SEC-aware rerank"]
+  Rerank --> Orchestrator["LLM orchestrator"]
+  Orchestrator --> Answer["answer + citations + metrics"]
+```
+
 See:
 
 - `docs/architecture.md`
 - `docs/case-study.md`
+- `docs/repository-guide.md`
 - `docs/llm-routing-benchmark.md`
 - `benchmarks/corpora/README.md`
 - `benchmarks/results/retrieval_benchmark_latest.md`
+
+## How The System Works
+
+1. A document is uploaded to the ingestion service with a tenant ID and document type.
+2. The ingestion service validates the file, stores the raw object in MinIO, writes metadata/status records, and queues OCR work in Redis.
+3. OCR and layout workers process the document asynchronously and queue embedding work.
+4. The embedding worker chunks extracted text/layout output, embeds chunks, and writes tenant-scoped vectors to Pinecone.
+5. A query request goes through authentication, rate limits, query caching, vector retrieval, BM25 reranking, and context construction in the inference API.
+6. The inference API calls the LLM orchestrator, which selects a prompt/model path, calls the provider wrapper, extracts citation markers, estimates token/cost fields, and returns the response.
+7. Benchmarks and corpus harnesses exercise these pieces in mock/offline mode or against explicitly configured local services.
+
+## Repository Map
+
+| Path | Purpose |
+|---|---|
+| `services/ingestion/` | Upload API, document metadata, OCR worker, and queue integration. |
+| `services/layout-parser/` | LayoutLMv3-based layout parsing worker. |
+| `services/embedding/` | Text/layout chunking, sentence-transformer embeddings, and Pinecone writes. |
+| `services/inference-api/` | Query API, auth/rate limiting, vector retrieval, BM25/SEC reranking, context construction, LLM calls. |
+| `services/llm-orchestrator/` | Prompt selection, typed complexity scoring, model routing, provider wrappers, caching, citation extraction. |
+| `benchmarks/` | LLM routing benchmark, synthetic retrieval benchmark, public-corpus acquisition, SEC labeling/enrichment, document RAG harness, report promotion. |
+| `benchmarks/corpora/` | Corpus manifests, source registry, synthetic manifest, and selected sanitized SEC report summaries. Raw local corpora stay ignored. |
+| `tests/` | Unit and benchmark tests for routing, hybrid retrieval, corpus manifests, SEC labeling/enrichment, and report tooling. |
+| `docs/` | Architecture notes, case study, routing benchmark methodology, and repository guide. |
+| `monitoring/` and `services/monitoring/` | Prometheus/Grafana configuration and monitoring service modules. |
+| `infrastructure/` | Kubernetes/Terraform scaffolding. This is not presented as production validation. |
 
 ## Quickstart
 
@@ -395,6 +439,17 @@ Interpretation: this is a lightweight answer/citation proxy over the same local 
 - Some Docker Compose images use `latest`, which weakens environment reproducibility.
 - Full local stack execution requires external services and credentials.
 - Real provider benchmark mode is not implemented yet.
+
+## Future Work
+
+These are not current claims; they are practical next steps.
+
+- Add independently reviewed page/chunk labels for the SEC corpus instead of relying only on generated section labels.
+- Test whether SEC-aware metadata/reranking generalizes beyond the current 8-filing sample.
+- Reduce remaining candidate-pool misses with retrieval changes that are evaluated before/after.
+- Add a real-provider benchmark mode with opt-in credentials, clear cost controls, and strict report labeling.
+- Broaden CI coverage for corpus manifest validation, report promotion, and retrieval metric utilities.
+- Pin remaining `latest` container images to improve environment reproducibility.
 
 ## CI
 
